@@ -1,16 +1,3 @@
-Selected files: { files: [] }
- ⨯ TypeError: relevantFiles is not iterable
-    at processChatQuery (src/app/actions.ts:46:24)
-  44 |     // 2. Retrieval: Fetch content of relevant files
-  45 |     let context = "";
-> 46 |     for (const file of relevantFiles) {
-     |                        ^
-  47 |         try {
-  48 |             const content = await getFileContent(repoContext.owner, repoContext.repo, file);
-  49 |             context += `\n--- FILE: ${file} ---\n${content}\n`; {
-  digest: '1251037015'
-}
- POST /chat?q=403errors%2Fideaflowai 500 in 1852ms (compile: 5ms, render: 1847ms)
 # RepoMind
 
 **RepoMind** is an intelligent coding assistant that allows you to "chat" with any public GitHub repository. It uses Agentic RAG (Retrieval-Augmented Generation) to perform deep code analysis without needing to clone the entire codebase.
@@ -26,7 +13,7 @@ Selected files: { files: [] }
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yourusername/repomind.git
+    git clone https://github.com/403errors/repomind.git
     cd repomind
     ```
 
