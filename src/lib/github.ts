@@ -4,6 +4,10 @@ const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN, // Optional for public repos, but good to have
 });
 
+// In-memory cache for the session
+const profileCache = new Map<string, GitHubProfile>();
+const repoCache = new Map<string, GitHubRepo>();
+
 export interface GitHubProfile {
   login: string;
   avatar_url: string;
@@ -29,6 +33,7 @@ export interface GitHubRepo {
   owner: {
     login: string;
   };
+  updated_at: string;
 }
 
 export interface FileNode {
@@ -41,17 +46,26 @@ export interface FileNode {
 }
 
 export async function getProfile(username: string): Promise<GitHubProfile> {
+  if (profileCache.has(username)) {
+    return profileCache.get(username)!;
+  }
   const { data } = await octokit.rest.users.getByUsername({
     username,
   });
+  profileCache.set(username, data);
   return data;
 }
 
 export async function getRepo(owner: string, repo: string): Promise<GitHubRepo> {
+  const cacheKey = `${owner}/${repo}`;
+  if (repoCache.has(cacheKey)) {
+    return repoCache.get(cacheKey)!;
+  }
   const { data } = await octokit.rest.repos.get({
     owner,
     repo,
   });
+  repoCache.set(cacheKey, data);
   return data;
 }
 
@@ -141,9 +155,9 @@ export async function getUserRepos(username: string): Promise<GitHubRepo[]> {
  * Fetch README files from all of a user's public repositories
  * Returns an array of { repo: string, content: string }
  */
-export async function getAllRepoReadmes(username: string): Promise<{ repo: string; content: string }[]> {
+export async function getAllRepoReadmes(username: string): Promise<{ repo: string; content: string; updated_at: string; description: string | null }[]> {
   const repos = await getUserRepos(username);
-  const readmes: { repo: string; content: string }[] = [];
+  const readmes: { repo: string; content: string; updated_at: string; description: string | null }[] = [];
 
   // Limit to top 20 repos to avoid overwhelming context
   const topRepos = repos.slice(0, 20);
@@ -154,6 +168,8 @@ export async function getAllRepoReadmes(username: string): Promise<{ repo: strin
       readmes.push({
         repo: repo.name,
         content,
+        updated_at: repo.updated_at,
+        description: repo.description,
       });
     } catch (e) {
       // Repo doesn't have a README, skip it

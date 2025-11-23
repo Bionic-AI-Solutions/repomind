@@ -13,40 +13,28 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
 
     const features = [
         {
-            icon: <User className="w-6 h-6" />,
-            title: "Profile Search",
-            description: "Search for any GitHub user and analyze their profile, projects, and contributions all in one place.",
-            isNew: true,
-        },
-        {
-            icon: <Code2 className="w-6 h-6" />,
-            title: "Interactive Cards",
-            description: "Seamlessly navigate between profiles and repositories with clickable cards - ask about projects and instantly explore them.",
-            isNew: true,
-        },
-        {
             icon: <Sparkles className="w-6 h-6" />,
-            title: "Smart Suggestions",
-            description: "Get started quickly with AI-powered question suggestions tailored to profiles and repositories.",
+            title: "Smart Caching",
+            description: "Instant load times for previously visited profiles and repositories.",
             isNew: true,
         },
         {
             icon: <Menu className="w-6 h-6" />,
-            title: "Mobile Responsive",
-            description: "Full mobile support with hamburger menu for seamless browsing on any device.",
+            title: "Mobile Experience",
+            description: "Optimized layout for mobile devices with improved navigation and touch controls.",
+            isNew: true,
+        },
+        {
+            icon: <Code2 className="w-6 h-6" />,
+            title: "Repo Chat",
+            description: "Deep dive into repositories with AI-powered chat and file analysis.",
             isNew: true,
         },
         {
             icon: <FileCode className="w-6 h-6" />,
             title: "File Preview",
-            description: "Double-click any file in the repository sidebar to instantly preview its contents with syntax highlighting.",
+            description: "Instant syntax-highlighted previews for any file in the repository.",
             isNew: true,
-        },
-        {
-            icon: <Search className="w-6 h-6" />,
-            title: "Enhanced Navigation",
-            description: "Back buttons, improved error pages, and streamlined UX throughout the app.",
-            isNew: false,
         },
     ];
 
@@ -76,7 +64,7 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
                                 <Sparkles className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold text-white">What's New</h2>
+                                <h2 className="text-2xl font-bold text-white">What's New in v1.1</h2>
                                 <p className="text-sm text-zinc-400">Latest features and improvements</p>
                             </div>
                         </div>
@@ -89,31 +77,34 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                        {features.map((feature, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="flex gap-4 p-4 bg-zinc-800/50 border border-white/5 rounded-lg hover:border-purple-600/30 transition-all"
-                            >
-                                <div className="p-3 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg text-white shrink-0">
-                                    {feature.icon}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                    <div className="flex-1 overflow-y-auto p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {features.map((feature, index) => (
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.1 }}
+                                    className="flex flex-col gap-3 p-4 bg-zinc-800/50 border border-white/5 rounded-xl hover:border-purple-600/30 transition-all"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="p-2 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg text-white shrink-0">
+                                            {feature.icon}
+                                        </div>
                                         {feature.isNew && (
-                                            <span className="px-2 py-0.5 text-xs font-semibold bg-purple-600 text-white rounded-full">
+                                            <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full">
                                                 NEW
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-zinc-400">{feature.description}</p>
-                                </div>
-                            </motion.div>
-                        ))}
+
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-white mb-1">{feature.title}</h3>
+                                        <p className="text-sm text-zinc-400 leading-relaxed">{feature.description}</p>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Footer */}

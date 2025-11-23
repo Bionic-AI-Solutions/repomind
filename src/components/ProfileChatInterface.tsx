@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { GitHubProfile } from "@/lib/github";
 import { EnhancedMarkdown } from "./EnhancedMarkdown";
 import Link from "next/link";
+import mermaid from "mermaid";
 
 interface Message {
     id: string;
@@ -18,8 +19,42 @@ interface Message {
 interface ProfileChatInterfaceProps {
     profile: GitHubProfile;
     profileReadme: string | null;
-    repoReadmes: { repo: string; content: string }[];
+    repoReadmes: { repo: string; content: string; updated_at: string; description: string | null }[];
 }
+
+// Initialize mermaid
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    securityLevel: 'loose',
+    themeVariables: {
+        primaryColor: '#18181b', // zinc-900
+        primaryTextColor: '#e4e4e7', // zinc-200
+        primaryBorderColor: '#3f3f46', // zinc-700
+        lineColor: '#a1a1aa', // zinc-400
+        secondaryColor: '#27272a', // zinc-800
+        tertiaryColor: '#27272a', // zinc-800
+        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+    }
+});
+
+const Mermaid = ({ chart }: { chart: string }) => {
+    const [svg, setSvg] = useState<string>("");
+    const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`);
+
+    useEffect(() => {
+        if (chart) {
+            mermaid.render(id.current, chart).then(({ svg }) => {
+                setSvg(svg);
+            }).catch((error) => {
+                console.error("Mermaid render error:", error);
+                setSvg(`<div class="text-red-500 text-xs p-2">Failed to render diagram</div>`);
+            });
+        }
+    }, [chart]);
+
+    return <div className="my-4 overflow-x-auto bg-zinc-950/50 p-4 rounded-lg" dangerouslySetInnerHTML={{ __html: svg }} />;
+};
 
 const PROFILE_SUGGESTIONS = [
     "What projects is he/she known for?",
@@ -179,6 +214,12 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                                             components={{
                                                 code: ({ className, children, ...props }: any) => {
                                                     const match = /language-(\w+)/.exec(className || "");
+                                                    const isMermaid = match && match[1] === "mermaid";
+
+                                                    if (isMermaid) {
+                                                        return <Mermaid chart={String(children).replace(/\n$/, "")} />;
+                                                    }
+
                                                     return match ? (
                                                         <div className="overflow-auto w-full my-2 bg-black/50 p-2 rounded-lg">
                                                             <code className={className} {...props}>

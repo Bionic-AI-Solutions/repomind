@@ -2,6 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { RepoCard } from "./RepoCard";
 import { DeveloperCard } from "./DeveloperCard";
+import { SmartLink } from "./SmartLink";
 
 interface ParsedContent {
     type: "markdown" | "repo-card" | "developer-card";
@@ -64,7 +65,10 @@ export function EnhancedMarkdown({ content, components }: EnhancedMarkdownProps)
                     return (
                         <ReactMarkdown
                             key={index}
-                            components={components}
+                            components={{
+                                a: SmartLink,
+                                ...components
+                            }}
                             remarkPlugins={[remarkGfm]}
                         >
                             {part.content as string}

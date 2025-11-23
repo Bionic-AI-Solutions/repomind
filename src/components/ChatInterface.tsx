@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, FileCode, ChevronRight, Bot, User, ArrowLeft, Sparkles, Github } from "lucide-react";
+import { Send, Loader2, FileCode, ChevronRight, Bot, User, ArrowLeft, Sparkles, Github, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { processChatQuery } from "@/app/actions";
 import { cn } from "@/lib/utils";
@@ -60,9 +60,10 @@ interface Message {
 
 interface ChatInterfaceProps {
     repoContext: { owner: string; repo: string; fileTree: any[] };
+    onToggleSidebar?: () => void;
 }
 
-export function ChatInterface({ repoContext }: ChatInterfaceProps) {
+export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
         {
             id: "welcome",
@@ -131,27 +132,38 @@ export function ChatInterface({ repoContext }: ChatInterfaceProps) {
     return (
         <div className="flex flex-col h-full bg-black text-white">
             {/* Repo Header */}
-            <div className="border-b border-white/10 px-6 py-4 bg-zinc-900/50 backdrop-blur-sm flex items-center gap-4">
-                <Link
-                    href="/"
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    title="Back to home"
-                >
-                    <ArrowLeft className="w-5 h-5 text-zinc-400 hover:text-white" />
-                </Link>
-                <div className="flex items-center gap-3">
-                    <Github className="w-5 h-5 text-zinc-400" />
-                    <h1 className="text-lg font-semibold text-zinc-100">{repoContext.owner}/{repoContext.repo}</h1>
+            {/* Repo Header */}
+            <div className="border-b border-white/10 p-4 bg-zinc-900/50 backdrop-blur-sm">
+                <div className="flex items-center gap-4 max-w-3xl mx-auto">
+                    {onToggleSidebar && (
+                        <button
+                            onClick={onToggleSidebar}
+                            className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                            <Menu className="w-5 h-5 text-zinc-400" />
+                        </button>
+                    )}
+                    <Link
+                        href="/"
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                        title="Back to home"
+                    >
+                        <ArrowLeft className="w-5 h-5 text-zinc-400 hover:text-white" />
+                    </Link>
+                    <div className="flex items-center gap-3">
+                        <Github className="w-5 h-5 text-zinc-400" />
+                        <h1 className="text-lg font-semibold text-zinc-100 truncate">{repoContext.owner}/{repoContext.repo}</h1>
+                    </div>
+                    <a
+                        href={`https://github.com/${repoContext.owner}/${repoContext.repo}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto text-sm px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors flex items-center gap-2 shrink-0"
+                    >
+                        <Github className="w-4 h-4" />
+                        <span className="hidden sm:inline">View on GitHub</span>
+                    </a>
                 </div>
-                <a
-                    href={`https://github.com/${repoContext.owner}/${repoContext.repo}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto text-sm px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors flex items-center gap-2"
-                >
-                    <Github className="w-4 h-4" />
-                    View on GitHub
-                </a>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">

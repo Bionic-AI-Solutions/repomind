@@ -45,6 +45,10 @@ export async function fetchUserRepos(username: string) {
     return await getAllRepoReadmes(username);
 }
 
+export async function fetchRepoDetails(owner: string, repo: string) {
+    return await getRepo(owner, repo);
+}
+
 export async function processChatQuery(
     query: string,
     repoContext: { owner: string; repo: string; filePaths: string[] }
@@ -78,7 +82,7 @@ export async function processChatQuery(
 
 export async function processProfileQuery(
     query: string,
-    profileContext: { username: string; profileReadme: string | null; repoReadmes: { repo: string; content: string }[] }
+    profileContext: { username: string; profileReadme: string | null; repoReadmes: { repo: string; content: string; updated_at: string; description: string | null }[] }
 ) {
     // Build context from profile README and repo READMEs
     let context = "";
@@ -89,7 +93,7 @@ export async function processProfileQuery(
 
     // Add repo READMEs
     for (const readme of profileContext.repoReadmes) {
-        context += `\n--- README from ${readme.repo} ---\n${readme.content}\n\n`;
+        context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\n\nREADME Content:\n${readme.content}\n\n`;
     }
 
     if (!context) {

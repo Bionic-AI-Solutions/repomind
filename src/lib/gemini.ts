@@ -114,7 +114,7 @@ export async function answerWithContext(
          - **HEADERS**: Use \`###\` headers for every distinct section.
          - **LISTS**: Use bullet points (\`-\`) for explanations.
          - **BOLDING**: Bold **key concepts** and **file names**.
-         - **INLINE CODE**: Use backticks \`\` for all code references (variables, functions, files).
+         - **INLINE CODE**: Use backticks \`\` for code references (variables, functions, files). Do NOT use backticks for usernames or mentions; use bold (**username**) instead.
          - **SPACING**: Add a blank line before and after every list item or header.
 
        - **REQUIRED RESPONSE FORMAT (EXAMPLE)**:

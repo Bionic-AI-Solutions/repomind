@@ -69,9 +69,8 @@ export default function Home() {
             Analyze code, ask questions, and understand projects in seconds.
           </p>
 
-          <form onSubmit={handleSubmit} className="w-full max-w-md relative group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
-            <div className="relative flex items-center bg-zinc-900 rounded-lg p-1">
+          <form onSubmit={handleSubmit} className="w-full max-w-md relative group px-4 md:px-0">
+            <div className="conic-border-container flex items-center bg-zinc-900 p-1">
               <input
                 type="text"
                 value={input}
@@ -99,7 +98,7 @@ export default function Home() {
             </motion.p>
           )}
 
-          <div className="mt-16 flex gap-4 text-sm text-zinc-500">
+          <div className="mt-16 flex flex-wrap justify-center gap-4 text-sm text-zinc-500 px-4">
             <span>Try:</span>
             <button onClick={() => setInput("torvalds")} className="hover:text-white transition-colors">torvalds</button>
             <span>•</span>
