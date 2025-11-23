@@ -43,7 +43,7 @@
 ## Tech Stack
 
 *   **Framework**: Next.js 16 (App Router)
-*   **AI**: Google Gemini 2.0 Flash (Experimental)
+*   **AI**: Google Gemini 2.5 Flash
 *   **Styling**: Tailwind CSS 4
 *   **Animations**: Framer Motion
 *   **Icons**: Lucide React
