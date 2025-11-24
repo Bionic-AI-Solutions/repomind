@@ -78,6 +78,7 @@ export default async function ChatPage({
     // Explicit cast or just usage since we checked type
     const repoData = data.data as GitHubRepo;
     const fileTree = data.fileTree as any[];
+    const hiddenFiles = data.hiddenFiles || [];
 
     return (
         <RepoLayout
@@ -85,6 +86,7 @@ export default async function ChatPage({
             repoName={repoData.full_name}
             owner={repoData.owner.login}
             repo={repoData.name}
+            hiddenFiles={hiddenFiles}
         />
     );
 }

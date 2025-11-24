@@ -1,12 +1,18 @@
-"use client";
-
-import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, FileCode, ChevronRight, Bot, User, ArrowLeft, Sparkles, Github, Menu } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Send, Loader2, FileCode, ChevronRight, Bot, User, ArrowLeft, Sparkles, Github, Menu, MessageCircle, Shield, AlertTriangle, Download, CheckCircle, Info, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { processChatQuery } from "@/app/actions";
+import { toast } from "sonner";
+import { processChatQuery, scanRepositoryVulnerabilities } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import mermaid from "mermaid";
+import html2canvas from "html2canvas-pro";
 import { EnhancedMarkdown } from "./EnhancedMarkdown";
+import { countMessageTokens, formatTokenCount, getTokenWarningLevel, isRateLimitError, getRateLimitErrorMessage } from "@/lib/tokens";
+import { validateMermaidSyntax, sanitizeMermaidCode, getFallbackTemplate } from "@/lib/diagram-utils";
+import { saveConversation, loadConversation, clearConversation } from "@/lib/storage";
+import { DevTools } from "./DevTools";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { CodeBlock } from "./CodeBlock";
 import Link from "next/link";
 
 // Initialize mermaid
@@ -25,23 +31,75 @@ mermaid.initialize({
     }
 });
 
-const Mermaid = ({ chart }: { chart: string }) => {
-    const [svg, setSvg] = useState<string>("");
-    const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`);
+import { Mermaid } from "./Mermaid";
 
-    useEffect(() => {
-        if (chart) {
-            mermaid.render(id.current, chart).then(({ svg }) => {
-                setSvg(svg);
-            }).catch((error) => {
-                console.error("Mermaid render error:", error);
-                setSvg(`<div class="text-red-500 text-xs p-2">Failed to render diagram</div>`);
-            });
-        }
-    }, [chart]);
+// ... (imports remain the same, remove local Mermaid definition)
 
-    return <div className="my-4 overflow-x-auto bg-zinc-950/50 p-4 rounded-lg" dangerouslySetInnerHTML={{ __html: svg }} />;
+// Extract MessageContent to a memoized component
+const MessageContent = ({ content, messageId }: { content: string, messageId: string }) => {
+    const components = useMemo(() => ({
+        code: ({ className, children, ...props }: any) => {
+            const match = /language-(\w+)/.exec(className || "");
+            const isMermaid = match && match[1] === "mermaid";
+
+            if (isMermaid) {
+                return <Mermaid key={messageId} chart={String(children).replace(/\n$/, "")} />;
+            }
+
+            return match ? (
+                <CodeBlock
+                    language={match[1]}
+                    value={String(children).replace(/\n$/, "")}
+                />
+            ) : (
+                <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-red-400 font-mono text-sm" {...props}>
+                    {children}
+                </code>
+            );
+        },
+        pre: ({ children }: any) => <>{children}</>,
+        table: ({ children }: any) => (
+            <div className="overflow-x-auto my-4">
+                <table className="min-w-full border-collapse border border-zinc-700">
+                    {children}
+                </table>
+            </div>
+        ),
+        thead: ({ children }: any) => (
+            <thead className="bg-zinc-800">{children}</thead>
+        ),
+        tbody: ({ children }: any) => (
+            <tbody className="bg-zinc-900/50">{children}</tbody>
+        ),
+        tr: ({ children }: any) => (
+            <tr className="border-b border-zinc-700">{children}</tr>
+        ),
+        th: ({ children }: any) => (
+            <th className="px-4 py-2 text-left text-sm font-semibold text-white border border-zinc-700">
+                {children}
+            </th>
+        ),
+        td: ({ children }: any) => (
+            <td className="px-4 py-2 text-sm text-zinc-300 border border-zinc-700">
+                {children}
+            </td>
+        ),
+    }), [messageId]);
+
+    return (
+        <EnhancedMarkdown
+            content={content}
+            components={components}
+        />
+    );
 };
+
+// ... (rest of the file)
+
+// In the render loop:
+// <div className="prose prose-invert prose-sm max-w-none leading-relaxed break-words overflow-hidden w-full min-w-0">
+//     <MessageContent content={msg.content} messageId={msg.id} />
+// </div>
 
 const REPO_SUGGESTIONS = [
     "Show me the user flow chart",
@@ -51,11 +109,22 @@ const REPO_SUGGESTIONS = [
     "Explain the architecture",
 ];
 
+interface Vulnerability {
+    title: string;
+    severity: string;
+    description: string;
+    file: string;
+    line?: number;
+    recommendation: string;
+}
+
 interface Message {
     id: string;
     role: "user" | "model";
     content: string;
     relevantFiles?: string[];
+    tokenCount?: number;
+    vulnerabilities?: Vulnerability[];
 }
 
 interface ChatInterfaceProps {
@@ -74,7 +143,39 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [showSuggestions, setShowSuggestions] = useState(true);
+    const [scanning, setScanning] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [initialized, setInitialized] = useState(false);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+    // Load conversation on mount
+    const toastShownRef = useRef(false);
+    useEffect(() => {
+        const saved = loadConversation(repoContext.owner, repoContext.repo);
+        if (saved && saved.length > 1) {
+            setMessages(saved);
+            setShowSuggestions(false);
+            if (!toastShownRef.current) {
+                toast.info('Conversation restored', { duration: 2000 });
+                toastShownRef.current = true;
+            }
+        }
+        setInitialized(true);
+    }, [repoContext.owner, repoContext.repo]);
+
+    // Save on every message change
+    useEffect(() => {
+        if (initialized && messages.length > 1) {
+            saveConversation(repoContext.owner, repoContext.repo, messages);
+        }
+    }, [messages, initialized, repoContext.owner, repoContext.repo]);
+
+    // Calculate total token count
+    const totalTokens = useMemo(() => {
+        return countMessageTokens(messages.map(m => ({ role: m.role, parts: m.content })));
+    }, [messages]);
+
+    const tokenWarningLevel = getTokenWarningLevel(totalTokens);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -105,6 +206,56 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
         setInput("");
         setLoading(true);
 
+        // Handle special commands
+        if (input.toLowerCase().includes("find security vulnerabilities") || input.toLowerCase().includes("scan for vulnerabilities")) {
+            setScanning(true);
+            try {
+                const filePaths = repoContext.fileTree.map((f: any) => f.path);
+                const { findings, summary } = await scanRepositoryVulnerabilities(
+                    repoContext.owner,
+                    repoContext.repo,
+                    filePaths
+                );
+
+                let content = `I've scanned the repository and found **${summary.total} potential issues**.\n\n`;
+
+                if (summary.critical > 0) content += `🔴 **${summary.critical} Critical**\n`;
+                if (summary.high > 0) content += `🟠 **${summary.high} High**\n`;
+                if (summary.medium > 0) content += `🟡 **${summary.medium} Medium**\n`;
+                if (summary.low > 0) content += `🔵 **${summary.low} Low**\n`;
+
+                content += `\nHere are the key findings:\n\n`;
+
+                findings.slice(0, 5).forEach(f => {
+                    content += `### ${f.title}\n`;
+                    content += `**Severity**: ${f.severity.toUpperCase()}\n`;
+                    content += `**File**: \`${f.file}\` ${f.line ? `(Line ${f.line})` : ''}\n`;
+                    content += `**Issue**: ${f.description}\n`;
+                    content += `**Fix**: ${f.recommendation}\n\n`;
+                });
+
+                if (findings.length > 5) {
+                    content += `*...and ${findings.length - 5} more issues.*`;
+                }
+
+                const modelMsg: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: "model",
+                    content: content,
+                    vulnerabilities: findings as any
+                };
+                setMessages((prev) => [...prev, modelMsg]);
+                setLoading(false);
+                setScanning(false);
+                return;
+            } catch (error) {
+                console.error("Scan failed:", error);
+                toast.error("Security scan failed");
+                setScanning(false);
+                // Fall through to normal chat processing if scan fails
+            }
+        }
+
         try {
             const filePaths = repoContext.fileTree.map((f: any) => f.path);
             const result = await processChatQuery(userMsg.content, {
@@ -121,8 +272,21 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
             };
 
             setMessages((prev) => [...prev, modelMsg]);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+
+            // Check if it's a rate limit error
+            if (isRateLimitError(error)) {
+                toast.error(getRateLimitErrorMessage(error), {
+                    description: "Please wait a few moments before trying again.",
+                    duration: 5000,
+                });
+            } else {
+                toast.error("Failed to analyze code", {
+                    description: "An unexpected error occurred. Please try again.",
+                });
+            }
+
             // Show user-friendly error message
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
@@ -135,9 +299,21 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
         }
     };
 
+    const handleClearChat = () => {
+        clearConversation(repoContext.owner, repoContext.repo);
+        setMessages([
+            {
+                id: "welcome",
+                role: "model",
+                content: `Hello! I've analyzed **${repoContext.owner}/${repoContext.repo}**. Ask me anything about the code structure, dependencies, or specific features.`,
+            },
+        ]);
+        setShowSuggestions(true);
+        toast.success("Chat history cleared");
+    };
+
     return (
         <div className="flex flex-col h-full bg-black text-white">
-            {/* Repo Header */}
             {/* Repo Header */}
             <div className="border-b border-white/10 p-4 bg-zinc-900/50 backdrop-blur-sm">
                 <div className="flex items-center gap-4 max-w-3xl mx-auto">
@@ -160,11 +336,41 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
                         <Github className="w-5 h-5 text-zinc-400" />
                         <h1 className="text-lg font-semibold text-zinc-100 truncate">{repoContext.owner}/{repoContext.repo}</h1>
                     </div>
+
+                    <div className={cn(
+                        "ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                        tokenWarningLevel === 'danger' && "bg-red-500/10 text-red-400 border border-red-500/20",
+                        tokenWarningLevel === 'warning' && "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+                        tokenWarningLevel === 'safe' && "bg-zinc-800 text-zinc-400 border border-white/10"
+                    )}>
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>{formatTokenCount(totalTokens)} / 1M tokens</span>
+                    </div>
+
+                    <DevTools
+                        repoContext={repoContext}
+                        onSendMessage={(role, content) => {
+                            setMessages(prev => [...prev, {
+                                id: Date.now().toString(),
+                                role,
+                                content
+                            }]);
+                        }}
+                    />
+
+                    <button
+                        onClick={() => setShowClearConfirm(true)}
+                        className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
+                        title="Clear Chat"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                    </button>
+
                     <a
                         href={`https://github.com/${repoContext.owner}/${repoContext.repo}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="ml-auto text-sm px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors flex items-center gap-2 shrink-0"
+                        className="text-sm px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors flex items-center gap-2 shrink-0"
                     >
                         <Github className="w-4 h-4" />
                         <span className="hidden sm:inline">View on GitHub</span>
@@ -198,68 +404,17 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
                             </div>
 
                             <div className={cn(
-                                "flex flex-col gap-2 max-w-[80%]",
-                                msg.role === "user" ? "items-end" : "items-start"
+                                "flex flex-col gap-2",
+                                msg.role === "user" ? "items-end max-w-[80%]" : "items-start w-full min-w-0"
                             )}>
                                 <div className={cn(
-                                    "p-4 rounded-2xl overflow-hidden",
+                                    "p-4 rounded-2xl overflow-hidden min-w-0",
                                     msg.role === "user"
                                         ? "bg-blue-600 text-white rounded-tr-none"
                                         : "bg-zinc-900 border border-white/10 rounded-tl-none"
                                 )}>
-                                    <div className="prose prose-invert prose-sm max-w-none leading-relaxed break-words overflow-hidden w-full">
-                                        <EnhancedMarkdown
-                                            content={msg.content}
-                                            components={{
-                                                code: ({ className, children, ...props }: any) => {
-                                                    const match = /language-(\w+)/.exec(className || "");
-                                                    const isMermaid = match && match[1] === "mermaid";
-
-                                                    if (isMermaid) {
-                                                        return <Mermaid chart={String(children).replace(/\n$/, "")} />;
-                                                    }
-
-                                                    return match ? (
-                                                        <div className="overflow-auto w-full my-2 bg-black/50 p-2 rounded-lg">
-                                                            <code className={className} {...props}>
-                                                                {children}
-                                                            </code>
-                                                        </div>
-                                                    ) : (
-                                                        <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-red-400 font-mono text-sm" {...props}>
-                                                            {children}
-                                                        </code>
-                                                    );
-                                                },
-                                                pre: ({ children }: any) => <>{children}</>,
-                                                table: ({ children }: any) => (
-                                                    <div className="overflow-x-auto my-4">
-                                                        <table className="min-w-full border-collapse border border-zinc-700">
-                                                            {children}
-                                                        </table>
-                                                    </div>
-                                                ),
-                                                thead: ({ children }: any) => (
-                                                    <thead className="bg-zinc-800">{children}</thead>
-                                                ),
-                                                tbody: ({ children }: any) => (
-                                                    <tbody className="bg-zinc-900/50">{children}</tbody>
-                                                ),
-                                                tr: ({ children }: any) => (
-                                                    <tr className="border-b border-zinc-700">{children}</tr>
-                                                ),
-                                                th: ({ children }: any) => (
-                                                    <th className="px-4 py-2 text-left text-sm font-semibold text-white border border-zinc-700">
-                                                        {children}
-                                                    </th>
-                                                ),
-                                                td: ({ children }: any) => (
-                                                    <td className="px-4 py-2 text-sm text-zinc-300 border border-zinc-700">
-                                                        {children}
-                                                    </td>
-                                                ),
-                                            }}
-                                        />
+                                    <div className="prose prose-invert prose-sm max-w-none leading-relaxed break-words overflow-hidden w-full min-w-0">
+                                        <MessageContent content={msg.content} messageId={msg.id} />
                                     </div>
                                 </div>
 
@@ -343,6 +498,17 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
                     </button>
                 </form>
             </div>
+
+            <ConfirmDialog
+                isOpen={showClearConfirm}
+                title="Clear Chat History?"
+                message="This will permanently delete all messages in this conversation. This action cannot be undone."
+                confirmText="Clear Chat"
+                cancelText="Cancel"
+                confirmVariant="danger"
+                onConfirm={handleClearChat}
+                onCancel={() => setShowClearConfirm(false)}
+            />
         </div>
     );
 }

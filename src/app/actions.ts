@@ -1,7 +1,9 @@
 "use server";
 
-import { getProfile, getRepo, getRepoFileTree, getFileContent, getProfileReadme, getAllRepoReadmes } from "@/lib/github";
+import { getProfile, getRepo, getRepoFileTree, getFileContent, getProfileReadme, getReposReadmes } from "@/lib/github";
 import { analyzeFileSelection, answerWithContext } from "@/lib/gemini";
+import { scanFiles, getScanSummary, groupBySeverity, type SecurityFinding, type ScanSummary } from "@/lib/security-scanner";
+import { analyzeCodeWithGemini } from "@/lib/gemini-security";
 
 export async function fetchGitHubData(input: string) {
     // Input format: "username" or "owner/repo"
@@ -23,8 +25,9 @@ export async function fetchGitHubData(input: string) {
         const [owner, repo] = parts;
         try {
             const repoData = await getRepo(owner, repo);
-            const fileTree = await getRepoFileTree(owner, repo);
-            return { type: "repo", data: repoData, fileTree };
+            // Use the default branch from the repo data to avoid phantom files from stale 'main' branches
+            const { tree, hiddenFiles } = await getRepoFileTree(owner, repo, repoData.default_branch);
+            return { type: "repo", data: repoData, fileTree: tree, hiddenFiles };
         } catch (e) {
             return { error: "Repository not found" };
         }
@@ -42,7 +45,7 @@ export async function fetchProfileReadme(username: string) {
 }
 
 export async function fetchUserRepos(username: string) {
-    return await getAllRepoReadmes(username);
+    return await getReposReadmes(username);
 }
 
 export async function fetchRepoDetails(owner: string, repo: string) {
@@ -123,4 +126,121 @@ export async function processProfileQuery(
         profileContext.profile // Pass profile data
     );
     return { answer };
+}
+
+/**
+ * Scan repository for security vulnerabilities
+ * Uses pattern-based detection + Gemini AI analysis
+ */
+export async function scanRepositoryVulnerabilities(
+    owner: string,
+    repo: string,
+    filePaths: string[]
+): Promise<{ findings: SecurityFinding[]; summary: ScanSummary; grouped: Record<string, SecurityFinding[]> }> {
+    try {
+        // Select relevant files for security scanning (focus on code files)
+        const codeFiles = filePaths.filter(path =>
+            /\.(js|jsx|ts|tsx|py|java|php|rb|go|rs)$/i.test(path) || path === 'package.json'
+        ).slice(0, 20); // Limit to 20 files for performance
+
+        // Fetch file contents
+        const filesWithContent: Array<{ path: string; content: string }> = [];
+        for (const filePath of codeFiles) {
+            try {
+                const content = await getFileContent(owner, repo, filePath);
+                filesWithContent.push({ path: filePath, content });
+            } catch (e) {
+                console.warn(`Failed to fetch ${filePath} for security scan`);
+            }
+        }
+
+        // Pattern-based scanning (fast, zero API costs)
+        const patternFindings = scanFiles(filesWithContent);
+
+        // AI-powered analysis (more thorough, uses Gemini)
+        const aiFindings = await analyzeCodeWithGemini(filesWithContent);
+
+        // Combine findings (deduplicate if needed)
+        const allFindings = [...patternFindings, ...aiFindings];
+
+        // Get summary and grouped results
+        const summary = getScanSummary(allFindings);
+        const grouped = groupBySeverity(allFindings);
+
+        return { findings: allFindings, summary, grouped };
+    } catch (error) {
+        console.error('Vulnerability scanning error:', error);
+        throw new Error('Failed to scan repository for vulnerabilities');
+    }
+}
+
+// --- Final Phase Actions ---
+
+import { analyzeCodeQuality, type QualityReport } from "@/lib/quality-analyzer";
+import { searchFiles, type SearchResult, type SearchOptions } from "@/lib/search-engine";
+import { generateDocumentation, generateTests, suggestRefactoring } from "@/lib/generator";
+
+export async function analyzeFileQuality(owner: string, repo: string, path: string): Promise<QualityReport | null> {
+    try {
+        const content = await getFileContent(owner, repo, path);
+        return await analyzeCodeQuality(content, path);
+    } catch (error) {
+        console.error("Quality analysis failed:", error);
+        return null;
+    }
+}
+
+export async function searchRepositoryCode(
+    owner: string,
+    repo: string,
+    filePaths: string[],
+    query: string,
+    type: 'text' | 'regex' | 'ast' = 'text'
+): Promise<SearchResult[]> {
+    try {
+        // Limit search to 50 files to prevent timeout
+        const searchFilesList = filePaths.slice(0, 50);
+        const filesWithContent = [];
+
+        for (const path of searchFilesList) {
+            try {
+                // Skip non-code files for AST search
+                if (type === 'ast' && !/\.(js|jsx|ts|tsx)$/.test(path)) continue;
+
+                const content = await getFileContent(owner, repo, path);
+                filesWithContent.push({ path, content });
+            } catch (e) {
+                // Skip failed files
+            }
+        }
+
+        return searchFiles(filesWithContent, { query, type });
+    } catch (error) {
+        console.error("Search failed:", error);
+        return [];
+    }
+}
+
+export async function generateArtifact(
+    owner: string,
+    repo: string,
+    path: string,
+    type: 'doc' | 'test' | 'refactor'
+): Promise<string> {
+    try {
+        const content = await getFileContent(owner, repo, path);
+
+        switch (type) {
+            case 'doc':
+                return await generateDocumentation(content);
+            case 'test':
+                return await generateTests(content);
+            case 'refactor':
+                return await suggestRefactoring(content);
+            default:
+                return "Invalid type";
+        }
+    } catch (error) {
+        return "Failed to generate artifact";
+    }
 }

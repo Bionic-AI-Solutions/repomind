@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { File, Folder, FolderOpen, GitBranch, ChevronRight, ChevronDown, X } from "lucide-react";
+import { File, Folder, FolderOpen, GitBranch, ChevronRight, ChevronDown, X, AlertCircle } from "lucide-react";
 import { FileNode } from "@/lib/github";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ interface RepoSidebarProps {
     isOpen: boolean;
     onClose: () => void;
     onFileDoubleClick?: (filePath: string) => void;
+    hiddenFiles?: { path: string; reason: string }[];
 }
 
 type TreeNode = {
@@ -132,8 +133,9 @@ function FileTreeNode({
     );
 }
 
-export function RepoSidebar({ fileTree, repoName, isOpen, onClose, onFileDoubleClick }: RepoSidebarProps) {
+export function RepoSidebar({ fileTree, repoName, isOpen, onClose, onFileDoubleClick, hiddenFiles = [] }: RepoSidebarProps) {
     const tree = buildTree(fileTree);
+    const [showHiddenFiles, setShowHiddenFiles] = useState(false);
 
     return (
         <>
@@ -177,7 +179,58 @@ export function RepoSidebar({ fileTree, repoName, isOpen, onClose, onFileDoubleC
                         />
                     ))}
                 </div>
+
+                {hiddenFiles.length > 0 && (
+                    <div className="p-3 border-t border-white/10 bg-zinc-900/80 backdrop-blur-sm">
+                        <button
+                            onClick={() => setShowHiddenFiles(true)}
+                            className="w-full flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors p-2 hover:bg-white/5 rounded"
+                        >
+                            <AlertCircle className="w-4 h-4 text-yellow-500/50" />
+                            <span>{hiddenFiles.length} system files hidden</span>
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {/* Hidden Files Modal */}
+            {showHiddenFiles && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-zinc-900 border border-white/10 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-zinc-900/50">
+                            <h3 className="font-semibold text-white flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-yellow-500" />
+                                Hidden Files
+                            </h3>
+                            <button
+                                onClick={() => setShowHiddenFiles(false)}
+                                className="p-1 hover:bg-white/10 rounded transition-colors"
+                            >
+                                <X className="w-4 h-4 text-zinc-400" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            <p className="text-sm text-zinc-400 mb-4">
+                                The following files and directories are hidden from the file tree to reduce noise and improve performance.
+                            </p>
+                            {hiddenFiles.map((file, i) => (
+                                <div key={i} className="flex items-start justify-between gap-4 p-2 rounded bg-zinc-950/50 border border-white/5 text-sm">
+                                    <span className="font-mono text-zinc-300 break-all">{file.path}</span>
+                                    <span className="text-xs text-zinc-500 whitespace-nowrap">{file.reason}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t border-white/10 bg-zinc-900/50">
+                            <button
+                                onClick={() => setShowHiddenFiles(false)}
+                                className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

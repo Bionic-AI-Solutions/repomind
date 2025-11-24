@@ -1,14 +1,17 @@
-"use client";
-
-import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User, Github, MapPin, Link as LinkIcon, Users, BookMarked, ArrowLeft, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Send, Loader2, Bot, User, Github, MapPin, Link as LinkIcon, Users, BookMarked, ArrowLeft, Sparkles, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { processProfileQuery } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { GitHubProfile } from "@/lib/github";
 import { EnhancedMarkdown } from "./EnhancedMarkdown";
+import { countMessageTokens, formatTokenCount, getTokenWarningLevel, isRateLimitError, getRateLimitErrorMessage } from "@/lib/tokens";
+import { validateMermaidSyntax, sanitizeMermaidCode, getFallbackTemplate } from "@/lib/diagram-utils";
+import { saveProfileConversation, loadProfileConversation } from "@/lib/storage";
 import Link from "next/link";
 import mermaid from "mermaid";
+import { CodeBlock } from "./CodeBlock";
 
 interface Message {
     id: string;
@@ -38,22 +41,65 @@ mermaid.initialize({
     }
 });
 
-const Mermaid = ({ chart }: { chart: string }) => {
-    const [svg, setSvg] = useState<string>("");
-    const id = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`);
+import { Mermaid } from "./Mermaid";
 
-    useEffect(() => {
-        if (chart) {
-            mermaid.render(id.current, chart).then(({ svg }) => {
-                setSvg(svg);
-            }).catch((error) => {
-                console.error("Mermaid render error:", error);
-                setSvg(`<div class="text-red-500 text-xs p-2">Failed to render diagram</div>`);
-            });
-        }
-    }, [chart]);
+// Extract MessageContent to a memoized component
+const MessageContent = ({ content, messageId }: { content: string, messageId: string }) => {
+    const components = useMemo(() => ({
+        code: ({ className, children, ...props }: any) => {
+            const match = /language-(\w+)/.exec(className || "");
+            const isMermaid = match && match[1] === "mermaid";
 
-    return <div className="my-4 overflow-x-auto bg-zinc-950/50 p-4 rounded-lg" dangerouslySetInnerHTML={{ __html: svg }} />;
+            if (isMermaid) {
+                return <Mermaid key={messageId} chart={String(children).replace(/\n$/, "")} />;
+            }
+
+            return match ? (
+                <CodeBlock
+                    language={match[1]}
+                    value={String(children).replace(/\n$/, "")}
+                />
+            ) : (
+                <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-red-400 font-mono text-sm" {...props}>
+                    {children}
+                </code>
+            );
+        },
+        pre: ({ children }: any) => <>{children}</>,
+        table: ({ children }: any) => (
+            <div className="overflow-x-auto my-4">
+                <table className="min-w-full border-collapse border border-zinc-700">
+                    {children}
+                </table>
+            </div>
+        ),
+        thead: ({ children }: any) => (
+            <thead className="bg-zinc-800">{children}</thead>
+        ),
+        tbody: ({ children }: any) => (
+            <tbody className="bg-zinc-900/50">{children}</tbody>
+        ),
+        tr: ({ children }: any) => (
+            <tr className="border-b border-zinc-700">{children}</tr>
+        ),
+        th: ({ children }: any) => (
+            <th className="px-4 py-2 text-left text-sm font-semibold text-white border border-zinc-700">
+                {children}
+            </th>
+        ),
+        td: ({ children }: any) => (
+            <td className="px-4 py-2 text-sm text-zinc-300 border border-zinc-700">
+                {children}
+            </td>
+        ),
+    }), [messageId]);
+
+    return (
+        <EnhancedMarkdown
+            content={content}
+            components={components}
+        />
+    );
 };
 
 const PROFILE_SUGGESTIONS = [
@@ -75,6 +121,36 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
     const [loading, setLoading] = useState(false);
     const [showSuggestions, setShowSuggestions] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [initialized, setInitialized] = useState(false);
+
+    // Load conversation on mount
+    const toastShownRef = useRef(false);
+    useEffect(() => {
+        const saved = loadProfileConversation(profile.login);
+        if (saved && saved.length > 1) {
+            setMessages(saved);
+            setShowSuggestions(false);
+            if (!toastShownRef.current) {
+                toast.info('Conversation restored', { duration: 2000 });
+                toastShownRef.current = true;
+            }
+        }
+        setInitialized(true);
+    }, [profile.login]);
+
+    // Save on every message change
+    useEffect(() => {
+        if (initialized && messages.length > 1) {
+            saveProfileConversation(profile.login, messages);
+        }
+    }, [messages, initialized, profile.login]);
+
+    // Calculate total token count
+    const totalTokens = useMemo(() => {
+        return countMessageTokens(messages.map(m => ({ role: m.role, parts: m.content })));
+    }, [messages]);
+
+    const tokenWarningLevel = getTokenWarningLevel(totalTokens);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -120,8 +196,21 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
             };
 
             setMessages((prev) => [...prev, modelMsg]);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+
+            // Check if it's a rate limit error
+            if (isRateLimitError(error)) {
+                toast.error(getRateLimitErrorMessage(error), {
+                    description: "Please wait a few moments before trying again.",
+                    duration: 5000,
+                });
+            } else {
+                toast.error("Failed to analyze profile", {
+                    description: "An unexpected error occurred. Please try again.",
+                });
+            }
+
             // Show user-friendly error message
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
@@ -162,6 +251,17 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                             >
                                 <Github className="w-5 h-5" />
                             </a>
+
+                            {/* Token Count Display */}
+                            <div className={cn(
+                                "ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                tokenWarningLevel === 'danger' && "bg-red-500/10 text-red-400 border border-red-500/20",
+                                tokenWarningLevel === 'warning' && "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+                                tokenWarningLevel === 'safe' && "bg-zinc-800 text-zinc-400 border border-white/10"
+                            )}>
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>{formatTokenCount(totalTokens)} / 1M tokens</span>
+                            </div>
                         </div>
                         {profile.bio && (
                             <p className="text-zinc-400 mb-3 line-clamp-2">{profile.bio}</p>
@@ -207,68 +307,17 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                             </div>
 
                             <div className={cn(
-                                "flex flex-col gap-2 max-w-[80%]",
-                                msg.role === "user" ? "items-end" : "items-start"
+                                "flex flex-col gap-2",
+                                msg.role === "user" ? "items-end max-w-[80%]" : "items-start w-full min-w-0"
                             )}>
                                 <div className={cn(
-                                    "p-4 rounded-2xl overflow-hidden",
+                                    "p-4 rounded-2xl overflow-hidden min-w-0",
                                     msg.role === "user"
                                         ? "bg-blue-600 text-white rounded-tr-none"
                                         : "bg-zinc-900 border border-white/10 rounded-tl-none"
                                 )}>
-                                    <div className="prose prose-invert prose-sm max-w-none leading-relaxed break-words overflow-hidden w-full">
-                                        <EnhancedMarkdown
-                                            content={msg.content}
-                                            components={{
-                                                code: ({ className, children, ...props }: any) => {
-                                                    const match = /language-(\w+)/.exec(className || "");
-                                                    const isMermaid = match && match[1] === "mermaid";
-
-                                                    if (isMermaid) {
-                                                        return <Mermaid chart={String(children).replace(/\n$/, "")} />;
-                                                    }
-
-                                                    return match ? (
-                                                        <div className="overflow-auto w-full my-2 bg-black/50 p-2 rounded-lg">
-                                                            <code className={className} {...props}>
-                                                                {children}
-                                                            </code>
-                                                        </div>
-                                                    ) : (
-                                                        <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-red-400 font-mono text-sm" {...props}>
-                                                            {children}
-                                                        </code>
-                                                    );
-                                                },
-                                                pre: ({ children }: any) => <>{children}</>,
-                                                table: ({ children }: any) => (
-                                                    <div className="overflow-x-auto my-4">
-                                                        <table className="min-w-full border-collapse border border-zinc-700">
-                                                            {children}
-                                                        </table>
-                                                    </div>
-                                                ),
-                                                thead: ({ children }: any) => (
-                                                    <thead className="bg-zinc-800">{children}</thead>
-                                                ),
-                                                tbody: ({ children }: any) => (
-                                                    <tbody className="bg-zinc-900/50">{children}</tbody>
-                                                ),
-                                                tr: ({ children }: any) => (
-                                                    <tr className="border-b border-zinc-700">{children}</tr>
-                                                ),
-                                                th: ({ children }: any) => (
-                                                    <th className="px-4 py-2 text-left text-sm font-semibold text-white border border-zinc-700">
-                                                        {children}
-                                                    </th>
-                                                ),
-                                                td: ({ children }: any) => (
-                                                    <td className="px-4 py-2 text-sm text-zinc-300 border border-zinc-700">
-                                                        {children}
-                                                    </td>
-                                                ),
-                                            }}
-                                        />
+                                    <div className="prose prose-invert prose-sm max-w-none leading-relaxed break-words overflow-hidden w-full min-w-0">
+                                        <MessageContent content={msg.content} messageId={msg.id} />
                                     </div>
                                 </div>
                             </div>

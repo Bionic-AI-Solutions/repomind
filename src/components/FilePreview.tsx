@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X, Loader2, FileCode, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
 interface FilePreviewProps {
     isOpen: boolean;
@@ -17,39 +18,79 @@ export function FilePreview({ isOpen, filePath, repoOwner, repoName, onClose }: 
     const [content, setContent] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [fileInfo, setFileInfo] = useState<{ size: number; html_url: string } | null>(null);
 
     useEffect(() => {
         if (!isOpen || !filePath) {
             setContent("");
+            setLoading(false);
             setError(null);
+            setFileInfo(null);
             return;
         }
 
         const fetchFileContent = async () => {
             setLoading(true);
             setError(null);
+            setFileInfo(null);
             try {
-                const response = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`, {
+                // Encode each segment of the path to handle spaces and special characters
+                const encodedPath = filePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+                const url = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${encodedPath}`;
+                console.log("Fetching file preview:", url);
+
+                const response = await fetch(url, {
                     headers: {
                         'Accept': 'application/vnd.github.v3+json',
                     }
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch file');
+                    if (response.status === 404) throw new Error('File not found');
+                    if (response.status === 403) throw new Error('Rate limit exceeded');
+                    throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
                 }
 
                 const data = await response.json();
+                setFileInfo({ size: data.size, html_url: data.html_url });
+
+                // Check for binary/video/large files based on extension and size
+                const ext = filePath.split('.').pop()?.toLowerCase() || '';
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext);
+                const isVideo = ['mp4', 'mov', 'avi', 'webm', 'mkv'].includes(ext);
+                const isBinary = ['pdf', 'zip', 'tar', 'gz', 'exe', 'dll', 'bin'].includes(ext);
+
+                // 1. File > 1MB
+                if (data.size > 1000000) {
+                    setError('File is too large to show (>1MB)');
+                    return;
+                }
+
+                // 2. Image > 500KB
+                if (isImage && data.size > 500000) {
+                    setError('Image is too large to show (>500KB)');
+                    return;
+                }
+
+                // 3. Video or Binary
+                if (isVideo || isBinary) {
+                    setError('Cannot preview binary or video file');
+                    return;
+                }
 
                 if (data.content) {
                     const decoded = atob(data.content);
                     setContent(decoded);
                 } else {
-                    setError('File is too large to preview');
+                    // If content is missing but size is small (shouldn't happen for text files < 1MB usually)
+                    // But if it does, it might be a submodule or something else
+                    setError('No content available');
                 }
-            } catch (err) {
-                setError('Failed to load file content');
-                console.error(err);
+            } catch (err: any) {
+                const errorMessage = err.message || 'Failed to load file content';
+                setError(errorMessage);
+                toast.error(errorMessage);
+                console.error("FilePreview Error:", err);
             } finally {
                 setLoading(false);
             }
@@ -132,9 +173,19 @@ export function FilePreview({ isOpen, filePath, repoOwner, repoName, onClose }: 
                         )}
 
                         {error && (
-                            <div className="flex flex-col items-center justify-center h-full gap-4">
-                                <AlertCircle className="w-12 h-12 text-red-500" />
-                                <p className="text-zinc-400">{error}</p>
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
+                                <AlertCircle className="w-12 h-12 text-zinc-500" />
+                                <p className="text-zinc-400 text-lg font-medium">{error}</p>
+                                {fileInfo?.html_url && (
+                                    <a
+                                        href={fileInfo.html_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-purple-400 hover:text-purple-300 underline underline-offset-4"
+                                    >
+                                        View file on GitHub
+                                    </a>
+                                )}
                             </div>
                         )}
 
@@ -157,8 +208,8 @@ export function FilePreview({ isOpen, filePath, repoOwner, repoName, onClose }: 
 
                     {/* Footer */}
                     <div className="p-3 border-t border-white/10 bg-zinc-900/80 backdrop-blur-sm flex items-center justify-between text-xs text-zinc-500">
-                        <span>{content.split('\n').length} lines</span>
-                        <span>{(content.length / 1024).toFixed(2)} KB</span>
+                        <span>{content ? `${content.split('\n').length} lines` : 'N/A'}</span>
+                        <span>{fileInfo?.size ? `${(fileInfo.size / 1024).toFixed(2)} KB` : '0 KB'}</span>
                     </div>
                 </motion.div>
             </div>

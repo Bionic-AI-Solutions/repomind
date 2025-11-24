@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -46,6 +47,19 @@ export default function RootLayout({
         className="antialiased font-sans"
       >
         {children}
+        <Toaster
+          position="top-right"
+          theme="dark"
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: '#18181b',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#fff',
+            },
+          }}
+        />
       </body>
     </html>
   );

@@ -30,7 +30,7 @@
     cp .env.example .env.local
     ```
     *   `GITHUB_TOKEN`: Your GitHub Personal Access Token.
-    *   `NEXT_PUBLIC_GEMINI_API_KEY`: Your Google Gemini API Key.
+    *   `GEMINI_API_KEY`: Your Google Gemini API Key.
 
 4.  **Run the development server**:
     ```bash

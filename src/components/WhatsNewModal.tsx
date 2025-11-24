@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Sparkles, User, Search, Code2, Menu, FileCode } from "lucide-react";
+import { X, Sparkles, User, Search, Code2, Menu, FileCode, Wrench, Shield, Github, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface WhatsNewModalProps {
@@ -13,28 +13,52 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
 
     const features = [
         {
+            icon: <Wrench className="w-6 h-6" />,
+            title: "Dev Tools Suite",
+            description: "Advanced Search (Regex/AST), Code Quality Analysis, and Automated Generators (Docs/Tests).",
+            isNew: true,
+        },
+        {
+            icon: <Shield className="w-6 h-6" />,
+            title: "Zero-Cost Security",
+            description: "Vulnerability scanning using pattern matching and Gemini AI without external paid APIs.",
+            isNew: true,
+        },
+        {
+            icon: <Github className="w-6 h-6" />,
+            title: "Enhanced Data",
+            description: "Precise language statistics via GraphQL and commit history for deeper insights.",
+            isNew: true,
+        },
+        {
+            icon: <Save className="w-6 h-6" />,
+            title: "Auto-Persistence",
+            description: "Conversations are now automatically saved locally and restored instantly.",
+            isNew: true,
+        },
+        {
             icon: <Sparkles className="w-6 h-6" />,
             title: "Smart Caching",
             description: "Instant load times for previously visited profiles and repositories.",
-            isNew: true,
+            isNew: false,
         },
         {
             icon: <Menu className="w-6 h-6" />,
             title: "Mobile Experience",
             description: "Optimized layout for mobile devices with improved navigation and touch controls.",
-            isNew: true,
+            isNew: false,
         },
         {
             icon: <Code2 className="w-6 h-6" />,
             title: "Repo Chat",
             description: "Deep dive into repositories with AI-powered chat and file analysis.",
-            isNew: true,
+            isNew: false,
         },
         {
             icon: <FileCode className="w-6 h-6" />,
             title: "File Preview",
             description: "Instant syntax-highlighted previews for any file in the repository.",
-            isNew: true,
+            isNew: false,
         },
     ];
 
@@ -64,7 +88,7 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
                                 <Sparkles className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold text-white">What's New in v1.1</h2>
+                                <h2 className="text-2xl font-bold text-white">What's New in v1.2</h2>
                                 <p className="text-sm text-zinc-400">Latest features and improvements</p>
                             </div>
                         </div>

@@ -1,7 +1,16 @@
 import { Octokit } from "octokit";
 
 const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN, // Optional for public repos, but good to have
+  auth: process.env.GITHUB_TOKEN,
+  request: {
+    fetch: (url: string, options: any) => {
+      return fetch(url, {
+        ...options,
+        cache: "no-store",
+        next: { revalidate: 0 }
+      });
+    },
+  },
 });
 
 // In-memory cache for the session
@@ -69,7 +78,7 @@ export async function getRepo(owner: string, repo: string): Promise<GitHubRepo> 
   return data;
 }
 
-export async function getRepoFileTree(owner: string, repo: string, branch: string = "main"): Promise<FileNode[]> {
+export async function getRepoFileTree(owner: string, repo: string, branch: string = "main"): Promise<{ tree: FileNode[], hiddenFiles: { path: string; reason: string }[] }> {
   // Get the tree recursively
   // First, get the branch SHA
   let sha = branch;
@@ -92,44 +101,157 @@ export async function getRepoFileTree(owner: string, repo: string, branch: strin
     recursive: "true",
   });
 
+  const hiddenFiles: { path: string; reason: string }[] = [];
+
   const filteredTree = (data.tree as FileNode[]).filter((node) => {
     const path = node.path;
-    return (
-      !path.startsWith(".git/") &&
-      !path.startsWith("node_modules/") &&
-      !path.startsWith(".next/") &&
-      !path.endsWith(".DS_Store") &&
-      !path.endsWith(".lock")
-      // Allowed: .vscode, .github, .idea for specific queries
-    );
+
+    // Basic exclusions
+    if (path.startsWith(".git/") || path === ".git") {
+      hiddenFiles.push({ path, reason: "Git System Directory" });
+      return false;
+    }
+    if (path.startsWith("node_modules/") || path === "node_modules") {
+      hiddenFiles.push({ path, reason: "Dependencies" });
+      return false;
+    }
+    if (path.startsWith(".next/") || path === ".next") {
+      hiddenFiles.push({ path, reason: "Next.js Build Output" });
+      return false;
+    }
+    if (path.startsWith(".idx/") || path === ".idx") {
+      hiddenFiles.push({ path, reason: "Project Index" });
+      return false;
+    }
+    if (path.startsWith(".vscode/") || path === ".vscode") {
+      hiddenFiles.push({ path, reason: "VS Code Configuration" });
+      return false;
+    }
+    if (path.endsWith(".DS_Store")) {
+      hiddenFiles.push({ path, reason: "macOS System File" });
+      return false;
+    }
+
+    return true;
   });
 
-  return filteredTree;
-}
-
-export async function getFileContent(owner: string, repo: string, path: string): Promise<string> {
-  const { data } = await octokit.rest.repos.getContent({
-    owner,
-    repo,
-    path,
-  });
-
-  if ("content" in data && !Array.isArray(data)) {
-    return Buffer.from(data.content, "base64").toString("utf-8");
-  }
-
-  throw new Error("File is too large or is a directory");
+  return { tree: filteredTree, hiddenFiles };
 }
 
 /**
- * Fetch the user's profile README from their special <username>/<username> repo
+ * GraphQL query for repository details
  */
-export async function getProfileReadme(username: string): Promise<string | null> {
+const REPO_DETAILS_QUERY = `
+  query RepoDetails($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) {
+      languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+        totalSize
+        edges {
+          size
+          node {
+            name
+            color
+          }
+        }
+      }
+      defaultBranchRef {
+        target {
+          ... on Commit {
+            history(first: 20) {
+              edges {
+                node {
+                  message
+                  committedDate
+                  author {
+                    name
+                    avatarUrl
+                    user {
+                      login
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+/**
+ * Fetch enhanced repository details using GraphQL
+ */
+export async function getRepoDetailsGraphQL(owner: string, repo: string) {
+  const { graphql } = await import("@octokit/graphql");
+
   try {
-    const content = await getFileContent(username, username, "README.md");
-    return content;
-  } catch (e) {
-    // User doesn't have a profile README
+    const data: any = await graphql(REPO_DETAILS_QUERY, {
+      owner,
+      name: repo,
+      headers: {
+        authorization: `token ${process.env.GITHUB_TOKEN}`,
+      },
+    });
+
+    const languages = data.repository.languages.edges.map((edge: any) => ({
+      name: edge.node.name,
+      color: edge.node.color,
+      size: edge.size,
+      percentage: ((edge.size / data.repository.languages.totalSize) * 100).toFixed(1)
+    }));
+
+    const commits = data.repository.defaultBranchRef.target.history.edges.map((edge: any) => ({
+      message: edge.node.message,
+      date: edge.node.committedDate,
+      author: {
+        name: edge.node.author.name,
+        login: edge.node.author.user?.login,
+        avatar: edge.node.author.avatarUrl
+      }
+    }));
+
+    return {
+      languages,
+      commits,
+      totalSize: data.repository.languages.totalSize
+    };
+  } catch (error) {
+    console.error("GraphQL fetch failed:", error);
+    return null;
+  }
+}
+
+export async function getFileContent(
+  owner: string,
+  repo: string,
+  path: string
+) {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+    });
+
+    if ("content" in data && !Array.isArray(data)) {
+      return Buffer.from(data.content, "base64").toString("utf-8");
+    }
+    throw new Error("Not a file");
+  } catch (error) {
+    console.error("Error fetching file content:", error);
+    throw error;
+  }
+}
+
+export async function getProfileReadme(username: string) {
+  try {
+    const { data } = await octokit.rest.repos.getReadme({
+      owner: username,
+      repo: username,
+    });
+    return Buffer.from(data.content, "base64").toString("utf-8");
+  } catch (error) {
     return null;
   }
 }
@@ -152,30 +274,38 @@ export async function getUserRepos(username: string): Promise<GitHubRepo[]> {
 }
 
 /**
- * Fetch README files from all of a user's public repositories
- * Returns an array of { repo: string, content: string }
+ * Get READMEs for a user's repositories
  */
-export async function getAllRepoReadmes(username: string): Promise<{ repo: string; content: string; updated_at: string; description: string | null }[]> {
-  const repos = await getUserRepos(username);
-  const readmes: { repo: string; content: string; updated_at: string; description: string | null }[] = [];
+export async function getReposReadmes(username: string) {
+  try {
+    const repos = await getUserRepos(username);
 
-  // Limit to top 20 repos to avoid overwhelming context
-  const topRepos = repos.slice(0, 20);
+    const readmePromises = repos.map(async (repo) => {
+      try {
+        const { data } = await octokit.rest.repos.getReadme({
+          owner: username,
+          repo: repo.name,
+        });
+        return {
+          repo: repo.name,
+          content: Buffer.from(data.content, "base64").toString("utf-8"),
+          updated_at: repo.updated_at,
+          description: repo.description,
+        };
+      } catch (e) {
+        return null;
+      }
+    });
 
-  for (const repo of topRepos) {
-    try {
-      const content = await getFileContent(username, repo.name, "README.md");
-      readmes.push({
-        repo: repo.name,
-        content,
-        updated_at: repo.updated_at,
-        description: repo.description,
-      });
-    } catch (e) {
-      // Repo doesn't have a README, skip it
-      continue;
-    }
+    const results = await Promise.all(readmePromises);
+    return results.filter((r) => r !== null) as {
+      repo: string;
+      content: string;
+      updated_at: string;
+      description: string | null;
+    }[];
+  } catch (error) {
+    console.error("Error fetching repos:", error);
+    return [];
   }
-
-  return readmes;
 }

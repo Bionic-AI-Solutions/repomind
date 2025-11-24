@@ -10,9 +10,10 @@ interface RepoLayoutProps {
     repoName: string;
     owner: string;
     repo: string;
+    hiddenFiles?: { path: string; reason: string }[];
 }
 
-export function RepoLayout({ fileTree, repoName, owner, repo }: RepoLayoutProps) {
+export function RepoLayout({ fileTree, repoName, owner, repo, hiddenFiles = [] }: RepoLayoutProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [previewFile, setPreviewFile] = useState<string | null>(null);
 
@@ -33,6 +34,7 @@ export function RepoLayout({ fileTree, repoName, owner, repo }: RepoLayoutProps)
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                     onFileDoubleClick={handleFileDoubleClick}
+                    hiddenFiles={hiddenFiles}
                 />
                 <div className="flex-1 h-full flex flex-col">
                     {/* Hamburger button for mobile */}

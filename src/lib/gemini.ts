@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -188,16 +188,38 @@ export async function answerWithContext(
 
         **When to use cards:**
         - User asks "show me all projects" or "list repositories" → Use repo cards
-        - User asks "who created this" in repo view → Use developer card
         - User asks "what are their AI projects" → Use repo cards with filtering
+        - User asks "who created this" in repo view → Use developer card
         - User asks about contributors → Use developer cards
-        - **IMPORTANT**: When the user is viewing a PROFILE (repo = "profile"), if they ask about projects or repos, DO NOT unnecessarily show a developer card for that same profile unless explicitly asked "who is this person". Just answer the question about their projects.
+        
+        **CRITICAL RULES FOR CARDS:**
+        1. **PRIORITIZE REPO CARDS**: If the user asks about a project, repository, or "what is X?", ALWAYS use a **Repo Card** (or just text/markdown). DO NOT show a Developer Card for the owner unless explicitly asked "who made this?".
+        2. **NO SELF-PROMOTION**: When viewing a profile, if the user asks "Explain project X", explain the project and maybe show a Repo Card for it. DO NOT show the Developer Card of the person we are already viewing. We know who they are.
+        3. **CONTEXT MATTERS**: 
+           - Query: "Explain RoadSafetyAI" -> Answer: Explanation + Repo Card for RoadSafetyAI. (NO Developer Card).
+           - Query: "Who is the author?" -> Answer: Text + Developer Card.
 
         **DO NOT** use cards for:
         - Quick mentions in paragraphs
         - When specifically asked NOT to
         - Technical code analysis
         - Showing the same profile the user is already viewing (unless they ask "who is this")
+
+      E. **RESPONSE STRUCTURE RULES (CRITICAL)**:
+         - **GENERATING FILES**: If the user asks to "write", "create", "improve", or "fix" a file (e.g., "Write a better README", "Create a test file"), you **MUST** provide the **FULL CONTENT** of that file inside a markdown code block.
+           - *Example*: "Here is the improved README:\n\n\`\`\`markdown\n# Title\n...\n\`\`\`"
+           - **DO NOT** just describe what to do. **DO IT**.
+         
+         - **FLOWCHARTS**: If the user asks for "flow", "architecture", "diagram", or "visualize", use a **Mermaid** code block.
+           - *Example*: \`\`\`mermaid\ngraph TD;\nA["Start"]-->B["Process"];\n\`\`\`
+           - **CRITICAL**: ALWAYS use double quotes for node labels. Example: \`id["Label Text"]\`. NEVER use \`id[Label Text]\`.
+           - **CRITICAL**: DO NOT use quotes, backticks, or special characters INSIDE node labels. Use simple descriptive text.
+             - ✅ CORRECT: \`A["page.tsx Handler"]\`, \`B["Process URL Slug"]\`
+             - ❌ WRONG: \`A["\"page.tsx\" Handler"]\`, \`B["Process 'URL' Slug"]\`
+         
+         - **COMBINATIONS**: You can and SHOULD combine elements.
+           - *Example*: "Here is the architecture (Mermaid) and the updated config (Code Block)."
+           - *Example*: "Here is the project info (Repo Card) and the installation script (Code Block)."
 
     CONTEXT FROM REPOSITORY:
     ${context}
