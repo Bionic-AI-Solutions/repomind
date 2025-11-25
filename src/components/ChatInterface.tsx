@@ -475,7 +475,7 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
 
                             <div className={cn(
                                 "flex flex-col gap-2",
-                                msg.role === "user" ? "items-end max-w-[85%] md:max-w-[80%]" : "items-start max-w-[calc(100vw-5rem)] md:max-w-full w-full min-w-0"
+                                msg.role === "user" ? "items-end max-w-[85%] md:max-w-[80%]" : "items-start max-w-full md:max-w-full w-full min-w-0"
                             )}>
                                 <div className={cn(
                                     "p-4 rounded-2xl overflow-hidden w-full min-w-0",

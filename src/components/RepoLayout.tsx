@@ -40,7 +40,7 @@ export function RepoLayout({ fileTree, repoName, owner, repo, hiddenFiles = [], 
 
     return (
         <>
-            <div className="flex h-screen bg-black overflow-hidden">
+            <div className="flex h-[100dvh] w-full bg-black overflow-hidden">
                 <RepoSidebar
                     fileTree={fileTree}
                     repoName={repoName}
@@ -50,7 +50,7 @@ export function RepoLayout({ fileTree, repoName, owner, repo, hiddenFiles = [], 
                     hiddenFiles={hiddenFiles}
                     repoData={repoData}
                 />
-                <div className="flex-1 h-full flex flex-col">
+                <div className="flex-1 h-full flex flex-col min-w-0">
                     {/* Hamburger button for mobile */}
                     <ChatInterface
                         repoContext={{

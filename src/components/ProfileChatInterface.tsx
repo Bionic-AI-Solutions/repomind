@@ -269,11 +269,11 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                     <img
                         src={profile.avatar_url}
                         alt={profile.login}
-                        className="w-20 h-20 rounded-xl border-2 border-white/20"
+                        className="w-10 h-10 md:w-20 md:h-20 rounded-xl border-2 border-white/20"
                     />
                     <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                            <h1 className="text-2xl font-bold">{profile.name || profile.login}</h1>
+                            <h1 className="text-lg md:text-2xl font-bold">{profile.name || profile.login}</h1>
                             <a
                                 href={profile.html_url}
                                 target="_blank"
@@ -295,7 +295,7 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                             </div>
                         </div>
                         {profile.bio && (
-                            <p className="text-zinc-400 mb-3 line-clamp-2">{profile.bio}</p>
+                            <p className="text-zinc-400 mb-3 line-clamp-2 hidden md:block">{profile.bio}</p>
                         )}
                         <div className="flex w-full justify-between md:justify-start md:gap-4 text-sm text-zinc-500">
                             <span className="flex items-center gap-1">
