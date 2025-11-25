@@ -89,7 +89,8 @@ export const Mermaid = ({ chart }: { chart: string }) => {
                         const errorMessage = renderError.message || 'Syntax error in diagram';
                         const isInternalError = errorMessage.includes('dmermaid') ||
                             errorMessage.includes('#') ||
-                            errorMessage.startsWith('Parse error');
+                            errorMessage.startsWith('Parse error') ||
+                            errorMessage.includes('mermaid version');
 
                         const sanitizedError = isInternalError ? 'Syntax error in diagram' : errorMessage;
                         setError(sanitizedError);

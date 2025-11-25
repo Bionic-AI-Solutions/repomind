@@ -87,6 +87,12 @@ export function validateMermaidSyntax(code: string): { valid: boolean; error?: s
             return { valid: false, error: 'Empty diagram code' };
         }
 
+        // Check for basic structural requirements
+        const lines = trimmed.split('\n').filter(l => l.trim());
+        if (lines.length < 2) {
+            return { valid: false, error: 'Diagram must have multiple lines' };
+        }
+
         // Check for valid diagram type
         const validTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'gantt'];
         const hasValidType = validTypes.some(type => trimmed.includes(type));
@@ -127,16 +133,18 @@ function sanitizeMermaidText(text: string): string {
 /**
  * Sanitize Mermaid code (fix common AI mistakes)
  */
-export function sanitizeMermaidCode(code: string): string {
+export function sanitizeMermaidCode(code: string, options: { preserveComments?: boolean } = {}): string {
     // 1. Basic cleanup
     let sanitized = code
         .replace(/\r\n/g, '\n'); // Normalize newlines
 
-    // 2. Remove comments
-    sanitized = sanitized.split('\n').map(line => {
-        const commentIndex = line.indexOf('%%');
-        return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
-    }).join('\n');
+    // 2. Remove comments (unless preserved)
+    if (!options.preserveComments) {
+        sanitized = sanitized.split('\n').map(line => {
+            const commentIndex = line.indexOf('%%');
+            return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
+        }).join('\n');
+    }
 
     // 3. Process line by line
     const lines = sanitized.split('\n');
@@ -150,6 +158,11 @@ export function sanitizeMermaidCode(code: string): string {
             trimmed.startsWith('click ') ||
             trimmed.startsWith('style ') ||
             trimmed.startsWith('linkStyle ')) {
+            return trimmed;
+        }
+
+        // Preserve subgraph/flowchart endings
+        if (trimmed === 'end') {
             return trimmed;
         }
 
@@ -258,7 +271,8 @@ export function sanitizeMermaidCode(code: string): string {
 
             // Regex to find shape usage
             // Global match
-            const regex = new RegExp(`([\\w-]+)\\s*${shape.start}(${quantifier})${shape.end}`, 'g');
+            // Using [a-zA-Z0-9_-] instead of \w for clarity and to explicitly allow hyphens/underscores
+            const regex = new RegExp(`([a-zA-Z0-9_-]+)\\s*${shape.start}(${quantifier})${shape.end}`, 'g');
 
             processedLine = processedLine.replace(regex, (match, id, content) => {
                 let text = content.trim();

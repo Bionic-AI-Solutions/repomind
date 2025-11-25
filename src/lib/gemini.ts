@@ -182,9 +182,15 @@ export async function answerWithContext(
 
          **DIAGRAMS**: 
            - **WHEN TO USE**: Only if explicitly asked or for complex flows.
-           - **SYNTAX**: \`mermaid\` code block, \`graph TD\`.
-           - **QUOTES**: Double quotes for all node text. \`A["Node"]\`.
-           - **COMMENTS**: NO inline comments. Comments must be on their own line starting with %%. Avoid incomplete comments.
+           - **SYNTAX**: You MUST use the **JSON Format** inside a \`mermaid-json\` code block. Do NOT use raw \`mermaid\` blocks.
+           - **JSON STRUCTURE**:
+             \`\`\`mermaid-json
+             {
+               "direction": "TD",
+               "nodes": [ { "id": "A", "label": "Label" } ],
+               "edges": [ { "from": "A", "to": "B", "label": "edge" } ]
+             }
+             \`\`\`
 
      C. **FACTUAL QUESTIONS** (e.g., "What is the version?", "Where is function X?"):
         - **ACTION**: Answer strictly based on the context.
@@ -361,9 +367,15 @@ export async function* answerWithContextStream(
 
          **DIAGRAMS**: 
            - **WHEN TO USE**: Only if explicitly asked or for complex flows.
-           - **SYNTAX**: \`mermaid\` code block, \`graph TD\`.
-           - **QUOTES**: Double quotes for all node text. \`A["Node"]\`.
-           - **COMMENTS**: NO inline comments. Comments must be on their own line starting with %%. Avoid incomplete comments.
+           - **SYNTAX**: You MUST use the **JSON Format** inside a \`mermaid-json\` code block. Do NOT use raw \`mermaid\` blocks.
+           - **JSON STRUCTURE**:
+             \`\`\`mermaid-json
+             {
+               "direction": "TD",
+               "nodes": [ { "id": "A", "label": "Label" } ],
+               "edges": [ { "from": "A", "to": "B", "label": "edge" } ]
+             }
+             \`\`\`
 
      C. **FACTUAL QUESTIONS** (e.g., "What is the version?", "Where is function X?"):
         - **ACTION**: Answer strictly based on the context.
