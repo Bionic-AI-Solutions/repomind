@@ -253,10 +253,10 @@ export const Mermaid = ({ chart }: { chart: string }) => {
                             </div>
 
                             {/* Content */}
-                            <div className="flex-1 overflow-hidden p-4 bg-zinc-950/50 flex items-center justify-center relative">
+                            <div className="flex-1 overflow-auto p-4 bg-zinc-950/50 relative custom-scrollbar">
                                 <div
                                     ref={modalRef}
-                                    className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-full [&>svg]:max-h-full"
+                                    className="min-w-min min-h-min [&>svg]:w-auto [&>svg]:h-auto"
                                     dangerouslySetInnerHTML={{ __html: svg }}
                                 />
                             </div>

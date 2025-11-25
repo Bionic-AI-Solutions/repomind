@@ -125,7 +125,10 @@ export async function generateAnswer(
 ): Promise<string> {
     // Track analytics
     try {
-        if (visitorId) {
+        // Skip tracking in development
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[Analytics] Skipped (Development Mode)`);
+        } else if (visitorId) {
             const headersList = await headers();
             const userAgent = headersList.get("user-agent") || "";
             const country = headersList.get("x-vercel-ip-country") || "Unknown";
@@ -159,7 +162,10 @@ export async function processProfileQuery(
 ) {
     // Track analytics
     try {
-        if (visitorId) {
+        // Skip tracking in development
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[Analytics] Skipped (Development Mode)`);
+        } else if (visitorId) {
             const headersList = await headers();
             const userAgent = headersList.get("user-agent") || "";
             const country = headersList.get("x-vercel-ip-country") || "Unknown";
