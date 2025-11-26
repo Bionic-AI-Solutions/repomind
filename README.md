@@ -28,6 +28,16 @@
 - **Noise Filtering**: Automatically ignores `node_modules`, lockfiles, and build artifacts to focus on source code.
 - **Multi-File Understanding**: Traces dependencies and imports to understand how different parts of the codebase interact.
 
+### 🧠 CAG vs RAG: The Architecture
+RepoMind uses **Context Augmented Generation (CAG)**, not traditional RAG. We don't chop your code into fragmented vectors; we load full, relevant files into the model's long context window for superior understanding.
+
+| Feature | Traditional RAG | 🧠 RepoMind (CAG) |
+| :--- | :--- | :--- |
+| **Data Unit** | Small Chunks (Vectors) | **Full Files** |
+| **Retrieval** | Similarity Search (Vector DB) | **AI Agent Selection** + **Smart Caching** |
+| **Context** | Fragmented | **Coherent & Complete** |
+| **Memory** | None (Stateless) | **KV Cache** (Remembers relevant files) |
+
 ### 📊 Visual Architecture Maps
 - **Auto-Generated Diagrams**: Instantly turn complex code logic into clear Mermaid flowcharts and sequence diagrams.
 - **Interactive Zoom/Pan**: Explore large diagrams with intuitive controls.

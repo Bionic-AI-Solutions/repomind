@@ -8,13 +8,14 @@ import { processProfileQuery } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { GitHubProfile } from "@/lib/github";
 import { EnhancedMarkdown } from "./EnhancedMarkdown";
-import { countMessageTokens, formatTokenCount, getTokenWarningLevel, isRateLimitError, getRateLimitErrorMessage } from "@/lib/tokens";
+import { countMessageTokens, formatTokenCount, getTokenWarningLevel, isRateLimitError, getRateLimitErrorMessage, MAX_TOKENS } from "@/lib/tokens";
 import { validateMermaidSyntax, sanitizeMermaidCode, getFallbackTemplate, generateMermaidFromJSON } from "@/lib/diagram-utils";
 import { saveProfileConversation, loadProfileConversation, clearProfileConversation } from "@/lib/storage";
 import { ConfirmDialog } from "./ConfirmDialog";
 import Link from "next/link";
 import mermaid from "mermaid";
 import { CodeBlock } from "./CodeBlock";
+import { ChatInput } from "./ChatInput";
 
 interface Message {
     id: string;
@@ -202,6 +203,15 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
         e.preventDefault();
         if (!input.trim() || loading) return;
 
+        // Check token limit
+        if (totalTokens >= MAX_TOKENS) {
+            toast.error("Conversation limit reached", {
+                description: "Please clear the chat to start a new conversation.",
+                duration: 5000,
+            });
+            return;
+        }
+
         setShowSuggestions(false);
 
         const userMsg: Message = {
@@ -313,7 +323,7 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                                 tokenWarningLevel === 'safe' && "bg-zinc-800 text-zinc-400 border border-white/10"
                             )}>
                                 <MessageCircle className="w-3.5 h-3.5" />
-                                <span>{formatTokenCount(totalTokens)} / 1M tokens</span>
+                                <span>{formatTokenCount(totalTokens)} / {formatTokenCount(MAX_TOKENS)} tokens</span>
                             </div>
 
                             <button
@@ -440,20 +450,14 @@ export function ProfileChatInterface({ profile, profileReadme, repoReadmes }: Pr
                 )}
 
                 <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative">
-                    <input
-                        type="text"
+                    <ChatInput
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask about their projects, skills, or contributions..."
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-600/50 transition-all"
+                        onChange={setInput}
+                        onSubmit={handleSubmit}
+                        placeholder={totalTokens >= MAX_TOKENS ? "Conversation limit reached. Please clear chat." : "Ask about their projects, skills, or contributions..."}
+                        disabled={totalTokens >= MAX_TOKENS}
+                        loading={loading}
                     />
-                    <button
-                        type="submit"
-                        disabled={!input.trim() || loading}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-white disabled:opacity-50 transition-colors"
-                    >
-                        <Send className="w-5 h-5" />
-                    </button>
                 </form>
             </div>
 

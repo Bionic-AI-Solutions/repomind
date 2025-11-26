@@ -15,6 +15,7 @@ import { saveConversation, loadConversation, clearConversation } from "@/lib/sto
 import { DevTools } from "./DevTools";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CodeBlock } from "./CodeBlock";
+import { ChatInput } from "./ChatInput";
 import Link from "next/link";
 import { StreamingProgress } from "./StreamingProgress";
 import type { StreamUpdate } from "@/lib/streaming-types";
@@ -632,24 +633,14 @@ export function ChatInterface({ repoContext, onToggleSidebar }: ChatInterfacePro
                 )}
 
                 <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative">
-                    <input
-                        type="text"
+                    <ChatInput
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
+                        onChange={setInput}
+                        onSubmit={handleSubmit}
                         placeholder={totalTokens >= MAX_TOKENS ? "Conversation limit reached. Please clear chat." : "Ask a question about the code..."}
-                        className={cn(
-                            "w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 pr-12 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-600/50 transition-all",
-                            totalTokens >= MAX_TOKENS && "opacity-50 cursor-not-allowed"
-                        )}
                         disabled={totalTokens >= MAX_TOKENS}
+                        loading={loading}
                     />
-                    <button
-                        type="submit"
-                        disabled={!input.trim() || loading || totalTokens >= MAX_TOKENS}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-white disabled:opacity-50 transition-colors"
-                    >
-                        <Send className="w-5 h-5" />
-                    </button>
                 </form>
             </div>
 

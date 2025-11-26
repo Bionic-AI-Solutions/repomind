@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
 import { WhatsNewModal } from "./WhatsNewModal";
 
 export function WhatsNewBadge() {
@@ -14,7 +15,7 @@ export function WhatsNewBadge() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
                 onClick={() => setIsModalOpen(true)}
-                className="absolute top-6 right-6 z-20 hover:scale-105 transition-transform"
+                className="fixed top-6 right-6 z-[999] hover:scale-105 transition-transform"
             >
                 <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-600/30 rounded-full backdrop-blur-md hover:border-purple-600/50 transition-colors">
                     <span className="relative flex h-2 w-2">

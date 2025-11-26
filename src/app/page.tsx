@@ -7,6 +7,9 @@ import { Github, ArrowRight, Loader2 } from "lucide-react";
 import { fetchGitHubData } from "./actions";
 import FeatureTiles from "@/components/FeatureTiles";
 import { WhatsNewBadge } from "@/components/WhatsNewBadge";
+import { CAGBadge } from "@/components/CAGBadge";
+import CAGComparison from "@/components/CAGComparison";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -40,15 +43,17 @@ export default function Home() {
   };
 
   return (
-    <main className="flex flex-col bg-black text-white overflow-x-hidden">
-      {/* Hero Section */}
-      <section className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* What's New Badge */}
-        <WhatsNewBadge />
-
-        {/* Background Gradients */}
+    <main className="flex flex-col bg-black text-white overflow-x-hidden relative">
+      {/* Fixed Background Layer */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[80vw] max-w-[500px] h-[80vw] max-h-[500px] bg-purple-600/30 rounded-full blur-[80px] md:blur-[128px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[80vw] max-w-[500px] h-[80vw] max-h-[500px] bg-blue-600/30 rounded-full blur-[80px] md:blur-[128px]" />
+      </div>
+
+      {/* Hero Section */}
+      <section className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden z-10">
+        {/* What's New Badge (Top Right) */}
+        <WhatsNewBadge />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -63,6 +68,9 @@ export default function Home() {
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
             RepoMind
           </h1>
+
+          {/* CAG Badge (Below Title) */}
+          <CAGBadge />
 
           <p className="text-base sm:text-lg md:text-xl text-zinc-400 mb-12 max-w-lg mx-auto">
             Deep dive into any repository or profile.
@@ -109,15 +117,19 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* Feature Tiles Section */}
-      <section className="relative py-20">
-        {/* Background gradient for features section */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-full blur-[150px] pointer-events-none" />
+      {/* CAG Comparison Section */}
+      <div className="relative z-10">
+        <CAGComparison />
+      </div>
 
+      {/* Feature Tiles Section */}
+      <section className="relative py-20 z-10">
         <div className="relative z-10">
           <FeatureTiles />
         </div>
       </section>
+
+      <Footer />
     </main>
   );
 }

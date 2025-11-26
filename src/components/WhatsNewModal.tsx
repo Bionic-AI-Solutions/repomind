@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { X, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -55,9 +56,9 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
         }
     ];
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 md:p-4">
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 md:p-4">
                 {/* Backdrop */}
                 <motion.div
                     initial={{ opacity: 0 }}
@@ -138,6 +139,7 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
                     </div>
                 </motion.div>
             </div>
-        </AnimatePresence>
-    );
+        </AnimatePresence>,
+        document.body
+    ) : null;
 }
