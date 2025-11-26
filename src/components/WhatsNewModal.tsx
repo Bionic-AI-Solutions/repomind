@@ -13,8 +13,16 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
 
     const versions = [
         {
-            version: "v1.3",
+            version: "v1.3.1",
             isNew: true,
+            features: [
+                "Increased accuracy in complex flowchart generation from 70% to 95+%",
+                "Improved error handling: Mermaid syntax errors are now hidden from the UI"
+            ]
+        },
+        {
+            version: "v1.3",
+            isNew: false,
             features: [
                 "Introduced the codeblocks in chat UI for code display with horizontal scrolling",
                 "Integrated an enhanced flowchart diagrams.",

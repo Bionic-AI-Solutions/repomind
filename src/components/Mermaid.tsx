@@ -11,6 +11,7 @@ mermaid.initialize({
     startOnLoad: false,
     theme: 'base',
     securityLevel: 'strict', // Prevent XSS attacks by enabling HTML sanitization
+    suppressErrorRendering: true, // Prevent default error message from appearing at bottom of screen
     themeVariables: {
         primaryColor: '#18181b', // zinc-900
         primaryTextColor: '#e4e4e7', // zinc-200
@@ -26,6 +27,7 @@ export const Mermaid = ({ chart }: { chart: string }) => {
     const [svg, setSvg] = useState<string>("");
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isFixing, setIsFixing] = useState(false);
     const diagramRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +48,7 @@ export const Mermaid = ({ chart }: { chart: string }) => {
 
         let mounted = true;
 
-        const renderDiagram = async () => {
+        const renderDiagram = async (retryCount = 0) => {
             try {
                 let codeToRender = chart;
 
@@ -79,18 +81,56 @@ export const Mermaid = ({ chart }: { chart: string }) => {
                     if (mounted) {
                         setSvg(svg);
                         setError(null);
+                        setIsFixing(false);
                         console.log('✅ Layer 1 successful: Basic sanitization worked');
                     }
                     return; // Success!
                 } catch (renderError: any) {
                     console.warn('❌ Layer 1 failed:', renderError.message || 'Render error');
+
+                    // PROACTIVE AI FIXING (Layer 2 Auto-Trigger)
+                    // If this is the first failure, try to auto-fix immediately
+                    if (retryCount === 0 && mounted) {
+                        console.log('🔄 Auto-triggering Layer 2: Proactive AI fix...');
+                        setIsFixing(true);
+                        setError(null); // Clear error while fixing
+
+                        try {
+                            const response = await fetch('/api/fix-mermaid', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ code: sanitized })
+                            });
+
+                            if (response.ok) {
+                                const { fixed } = await response.json();
+                                if (fixed) {
+                                    console.log('✅ AI Fix received, retrying render...');
+                                    // Recursive call with fixed code, but increment retry count to avoid infinite loop
+                                    // We update the chart ref implicitly by passing the fixed code to mermaid.render
+                                    // But since we need to re-run the whole flow, let's just try rendering the fixed code directly here
+                                    const { svg } = await mermaid.render(id + '-autofixed', fixed);
+                                    if (mounted) {
+                                        setSvg(svg);
+                                        setError(null);
+                                        setIsFixing(false);
+                                        console.log('✅ Layer 2 successful: Auto-fix worked');
+                                    }
+                                    return;
+                                }
+                            }
+                        } catch (aiError) {
+                            console.warn('⚠️ Auto-fix failed:', aiError);
+                        }
+                    }
+
                     if (mounted) {
+                        setIsFixing(false);
                         // Sanitize error message to remove internal IDs (e.g., #dmermaid-...) and parse errors
                         const errorMessage = renderError.message || 'Syntax error in diagram';
                         const isInternalError = errorMessage.includes('dmermaid') ||
                             errorMessage.includes('#') ||
-                            errorMessage.startsWith('Parse error') ||
-                            errorMessage.includes('mermaid version');
+                            errorMessage.startsWith('Parse error');
 
                         const sanitizedError = isInternalError ? 'Syntax error in diagram' : errorMessage;
                         setError(sanitizedError);
@@ -99,6 +139,7 @@ export const Mermaid = ({ chart }: { chart: string }) => {
             } catch (error: any) {
                 console.error('Complete render failure:', error);
                 if (mounted) {
+                    setIsFixing(false);
                     setError('Failed to render diagram');
                 }
             }
@@ -114,10 +155,11 @@ export const Mermaid = ({ chart }: { chart: string }) => {
     const handleRetry = async () => {
         if (!chart) return;
         setError(null);
+        setIsFixing(true);
 
         try {
-            // Layer 2: AI-powered syntax fix (intelligent correction)
-            console.log('🔄 Attempting Layer 2: AI-powered fix...');
+            // Layer 3: Manual AI-powered syntax fix (if auto-fix failed or user wants to try again)
+            console.log('🔄 Attempting Layer 3: Manual AI-powered fix...');
             const sanitized = sanitizeMermaidCode(chart);
 
             const response = await fetch('/api/fix-mermaid', {
@@ -129,16 +171,18 @@ export const Mermaid = ({ chart }: { chart: string }) => {
             if (response.ok) {
                 const { fixed } = await response.json();
                 if (fixed) {
-                    const { svg } = await mermaid.render(id + '-fixed', fixed);
+                    const { svg } = await mermaid.render(id + '-manualfixed', fixed);
                     setSvg(svg);
                     setError(null);
-                    console.log('✅ Layer 2 successful: AI fix worked');
+                    console.log('✅ Layer 3 successful: Manual AI fix worked');
                     return;
                 }
             }
             setError("Could not automatically fix the diagram. Please try asking again.");
         } catch (e: any) {
             setError(e.message || "Failed to fix diagram");
+        } finally {
+            setIsFixing(false);
         }
     };
 
@@ -195,8 +239,17 @@ export const Mermaid = ({ chart }: { chart: string }) => {
                     </button>
                 </div>
 
-                {error && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 text-center">
+                {isFixing && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/50 backdrop-blur-sm rounded-lg z-10">
+                        <div className="flex items-center gap-2 text-zinc-400">
+                            <Sparkles className="w-5 h-5 animate-pulse text-purple-400" />
+                            <span className="text-sm font-medium">Fixing diagram...</span>
+                        </div>
+                    </div>
+                )}
+
+                {error && !isFixing && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 text-center z-10">
                         <p className="text-red-400 text-sm mb-3 max-w-[90%] break-words">{error}</p>
                         <button
                             onClick={(e) => {

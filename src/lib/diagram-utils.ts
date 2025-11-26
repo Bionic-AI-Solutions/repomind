@@ -79,6 +79,10 @@ graph TB
  * Validate Mermaid syntax
  * Simplified to avoid false positives with quoted content
  */
+/**
+ * Enhanced Mermaid validation
+ * Checks for specific syntax issues beyond just diagram type
+ */
 export function validateMermaidSyntax(code: string): { valid: boolean; error?: string } {
     try {
         const trimmed = code.trim();
@@ -87,22 +91,40 @@ export function validateMermaidSyntax(code: string): { valid: boolean; error?: s
             return { valid: false, error: 'Empty diagram code' };
         }
 
-        // Check for basic structural requirements
-        const lines = trimmed.split('\n').filter(l => l.trim());
-        if (lines.length < 2) {
-            return { valid: false, error: 'Diagram must have multiple lines' };
-        }
-
-        // Check for valid diagram type
-        const validTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'gantt'];
-        const hasValidType = validTypes.some(type => trimmed.includes(type));
+        // 1. Check for valid diagram type
+        const validTypes = ['graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram', 'erDiagram', 'gantt', 'pie', 'gitGraph'];
+        const hasValidType = validTypes.some(type => trimmed.startsWith(type));
 
         if (!hasValidType) {
-            return { valid: false, error: 'Invalid or missing diagram type' };
+            return { valid: false, error: 'Missing or invalid diagram type declaration' };
         }
 
-        // We skip bracket counting as it's prone to errors with quoted content
-        // and let Mermaid's renderer handle the detailed validation
+        // 2. Check for common syntax errors
+        const checks = [
+            {
+                test: /--[^>]/,
+                error: 'Potential incomplete arrow syntax (found "--" without ">")'
+            },
+            {
+                test: /\[\[(?!.*\]\])/,
+                error: 'Unmatched double brackets "[["'
+            },
+            {
+                test: /\(\((?!.*\)\))/,
+                error: 'Unmatched double parentheses "(("'
+            },
+            {
+                test: /\{(?!.*\})/,
+                error: 'Unmatched curly braces'
+            }
+        ];
+
+        for (const check of checks) {
+            if (check.test.test(trimmed)) {
+                return { valid: false, error: check.error };
+            }
+        }
+
         return { valid: true };
     } catch (e: any) {
         return { valid: false, error: e.message || 'Unknown validation error' };
@@ -111,40 +133,34 @@ export function validateMermaidSyntax(code: string): { valid: boolean; error?: s
 
 /**
  * Sanitize text content for Mermaid diagrams
- * Focuses on basic cleanup - AI layer handles complex corrections
+ * Context-aware sanitization that preserves valid syntax
  */
 function sanitizeMermaidText(text: string): string {
     return text
-        // Strip all HTML tags
+        // Strip HTML tags but keep content
         .replace(/<[^>]*>/g, ' ')
-        // Remove backticks, quotes, angle brackets
-        .replace(/[`"'<>]/g, '')
-        // Replace slashes and backslashes with spaces
-        .replace(/[\\/]/g, ' ')
-        // Remove newlines and tabs
-        .replace(/[\n\t]/g, ' ')
-        // Keep only safe ASCII: a-z A-Z 0-9 space and basic punctuation
-        .replace(/[^a-zA-Z0-9 .,;:!?()\-_]/g, '')
-        // Collapse multiple spaces
-        .replace(/\s+/g, ' ')
+        // Remove potentially dangerous characters but keep quotes if they look intentional
+        // We only remove quotes if they are unbalanced or weirdly placed
+        .replace(/[\\]/g, ' ') // Remove backslashes
+        .replace(/[\t]/g, ' ') // Remove tabs
         .trim();
 }
 
 /**
  * Sanitize Mermaid code (fix common AI mistakes)
+ * Smarter, less aggressive sanitization
  */
-export function sanitizeMermaidCode(code: string, options: { preserveComments?: boolean } = {}): string {
+export function sanitizeMermaidCode(code: string): string {
     // 1. Basic cleanup
     let sanitized = code
-        .replace(/\r\n/g, '\n'); // Normalize newlines
+        .replace(/\r\n/g, '\n') // Normalize newlines
+        .replace(/\\n/g, '\n'); // Fix escaped newlines often sent by LLMs
 
-    // 2. Remove comments (unless preserved)
-    if (!options.preserveComments) {
-        sanitized = sanitized.split('\n').map(line => {
-            const commentIndex = line.indexOf('%%');
-            return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
-        }).join('\n');
-    }
+    // 2. Remove comments
+    sanitized = sanitized.split('\n').map(line => {
+        const commentIndex = line.indexOf('%%');
+        return commentIndex >= 0 ? line.substring(0, commentIndex) : line;
+    }).join('\n');
 
     // 3. Process line by line
     const lines = sanitized.split('\n');
@@ -152,155 +168,37 @@ export function sanitizeMermaidCode(code: string, options: { preserveComments?: 
         let trimmed = line.trim();
         if (!trimmed) return '';
 
-        // Skip directives
-        if (trimmed.startsWith('classDef') ||
-            trimmed.startsWith('class ') ||
-            trimmed.startsWith('click ') ||
-            trimmed.startsWith('style ') ||
-            trimmed.startsWith('linkStyle ')) {
-            return trimmed;
-        }
-
-        // Preserve subgraph/flowchart endings
-        if (trimmed === 'end') {
+        // Skip directives and class definitions
+        if (trimmed.match(/^(classDef|class|click|style|linkStyle)\s/)) {
             return trimmed;
         }
 
         // Handle subgraph
         if (trimmed.startsWith('subgraph ')) {
             const title = trimmed.substring(9).trim();
-            // If not already quoted
-            if (!title.startsWith('"')) {
-                const sanitizedTitle = sanitizeMermaidText(title);
-                return `subgraph "${sanitizedTitle}"`;
+            // Ensure title is quoted if it contains spaces or special chars
+            if (!title.startsWith('"') && !title.startsWith('[')) {
+                return `subgraph "${title.replace(/"/g, "'")}"`;
             }
             return trimmed;
         }
 
-        // Handle graph/flowchart declaration
-        if (trimmed.match(/^(graph|flowchart)\s/)) {
-            // Remove trailing semicolon if present
-            trimmed = trimmed.replace(/;$/, '');
-            const parts = trimmed.split(/\s+/);
-            const type = parts[0];
-            const dir = parts[1] || 'TD';
-            // Clean dir (remove semicolon if it was attached)
-            const cleanDir = dir.replace(';', '');
-            const validDirs = ['TB', 'TD', 'BT', 'RL', 'LR'];
-            const safeDir = validDirs.includes(cleanDir) ? cleanDir : 'TD';
-            return `${type} ${safeDir}`;
-        }
-
-        // Check for links (arrows) and handle edge labels
-        const arrowPatterns = [
-            /-->/,   // Solid arrow
-            /---/,   // Link line
-            /\.->/,  // Dotted arrow
-            /==>/,   // Bold arrow
-            /--/     // Double dash
-        ];
-
-        const hasArrow = arrowPatterns.some(pattern => pattern.test(trimmed));
-
-        // If this line has an arrow, we need to handle edge labels specially
-        if (hasArrow) {
-            // Remove quotes from edge labels (text between arrow parts or in pipes)
-            // Pattern: A -- "label" --> B  should become  A -- label --> B
-            // Pattern: A -->|"label"| B  should become  A -->|label| B
-
-            // Ensure pipe-style edge labels are quoted if they contain special chars or aren't quoted
-            // We capture the arrow/pipe start, the content, and the closing pipe
-            // Regex explanation:
-            // 1. (\||[=-]+>?\||[.-]+>?\|) -> Start of label (e.g., "|", "-->|", "-.->|")
-            // 2. \s* -> Optional whitespace
-            // 3. (?!"|') -> Negative lookahead: ensure it doesn't already start with a quote
-            // 4. (.*?) -> Capture content (non-greedy)
-            // 5. \s* -> Optional whitespace
-            // 6. (\|) -> Closing pipe
-            trimmed = trimmed.replace(/(\||[=-]+>?\||[.-]+>?\|)\s*(?!"|')(.*?)\s*(\|)/g, (match, start, content, end) => {
-                if (!content.trim()) return match; // Empty label
-                const safeContent = sanitizeMermaidText(content);
-                return `${start}"${safeContent}"${end}`;
-            });
-
-            // Ensure space-style edge labels are quoted
-            // Pattern: -- Label -->
-            trimmed = trimmed.replace(/(--+|\.\.+|==+)\s+(?!"|')(.+?)\s+(--+>?|\.\.+>?|==+>?)/g, (match, start, content, end) => {
-                if (!content.trim()) return match;
-                // Don't touch if it looks like a node definition (e.g. -- Node["Label"])
-                if (content.match(/[\[\(\{]/)) return match;
-
-                const safeContent = sanitizeMermaidText(content);
-                return `${start} "${safeContent}" ${end}`;
-            });
-
-            // Handle incomplete node definitions after arrows
-            // Pattern: A --> "Label" (no node ID or shape)
-            // Should become: A --> NodeX["Label"]
-            // Match: arrow followed by space and quoted text at end of line (no node shape)
-            trimmed = trimmed.replace(/(-->|\.->|==>)\s*"([^"]+)"(?!\s*[)\]}>]|\s*--|\s*\.\.|\s*==)/g, (match, arrow, label) => {
-                // Generate a simple node ID from the label
-                const nodeId = 'N' + sanitizeMermaidText(label).replace(/[^a-zA-Z0-9]/g, '').substring(0, 10);
-                const safeLabel = sanitizeMermaidText(label);
-                return `${arrow} ${nodeId}["${safeLabel}"]`;
-            });
-        }
-
-        // Shapes
-        const shapes = [
-            { start: '\\[\\(', end: '\\)\\]', o: '[(', c: ')]' }, // Database
-            { start: '\\[\\[', end: '\\]\\]', o: '[[', c: ']]' }, // Subroutine
-            { start: '\\(\\(', end: '\\)\\)', o: '((', c: '))' }, // Circle
-            { start: '\\{\\{', end: '\\}\\}', o: '{{', c: '}}' }, // Hexagon
-            { start: '\\[\\/', end: '\\/\\]', o: '[/', c: '/]' }, // Parallelogram
-            { start: '\\[\\\\', end: '\\\\\\]', o: '[\\', c: '\\]' }, // Parallelogram alt
-            { start: '\\[\\/', end: '\\\\\\]', o: '[/', c: '\\]' }, // Trapezoid
-            { start: '\\[\\\\', end: '\\/\\]', o: '[\\', c: '/]' }, // Trapezoid alt
-            { start: '\\(', end: '\\)', o: '(', c: ')' },       // Round
-            { start: '\\[', end: '\\]', o: '[', c: ']' },       // Square
-            { start: '\\{', end: '\\}', o: '{', c: '}' },       // Rhombus
-            { start: '>', end: '\\]', o: '>', c: ']' }          // Asymmetric
-        ];
-
-        let processedLine = trimmed;
-
-        for (const shape of shapes) {
-            // If has arrow, use non-greedy matching to avoid spanning multiple nodes
-            // If no arrow, use greedy matching to handle nested chars
-            const quantifier = hasArrow ? '.*?' : '.*';
-
-            // Regex to find shape usage
-            // Global match
-            // Using [a-zA-Z0-9_-] instead of \w for clarity and to explicitly allow hyphens/underscores
-            const regex = new RegExp(`([a-zA-Z0-9_-]+)\\s*${shape.start}(${quantifier})${shape.end}`, 'g');
-
-            processedLine = processedLine.replace(regex, (match, id, content) => {
-                let text = content.trim();
-                // Remove existing outer quotes
-                if (text.startsWith('"') && text.endsWith('"')) {
-                    text = text.slice(1, -1);
-                }
-                // Sanitize the content properly
-                const safeContent = sanitizeMermaidText(text);
-                return `${id}${shape.o}"${safeContent}"${shape.c}`;
-            });
-        }
-
-        // Fallback for plain text "ID Label" (only if no arrow and no shapes matched yet)
-        // If processedLine is still same as trimmed (no shapes replaced) AND no arrow
-        if (processedLine === trimmed && !hasArrow) {
-            const match = trimmed.match(/^([\w-]+)\s+(.+)$/);
+        // Fix arrow syntax: A -- Label --> B
+        // We want to ensure the label is quoted: A -- "Label" --> B
+        if (trimmed.includes('-->') || trimmed.includes('-.->') || trimmed.includes('==>')) {
+            // Regex to find unquoted text between arrow parts
+            // Matches: -- text -->, -. text .->, == text ==>
+            const arrowLabelRegex = /(--|\.-|==)\s+([a-zA-Z0-9\s]+?)\s+(-->|\.->|==>)/;
+            const match = trimmed.match(arrowLabelRegex);
             if (match) {
-                const id = match[1];
-                const label = match[2].trim();
-                if (id !== 'end') {
-                    const safeLabel = sanitizeMermaidText(label);
-                    return `${id}["${safeLabel}"]`;
+                const [full, start, label, end] = match;
+                if (!label.includes('"')) {
+                    return trimmed.replace(full, `${start} "${label.trim()}" ${end}`);
                 }
             }
         }
 
-        return processedLine;
+        return trimmed;
     });
 
     return processedLines.filter(l => l).join('\n');
