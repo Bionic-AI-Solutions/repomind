@@ -14,8 +14,17 @@ export function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
 
     const versions = [
         {
-            version: "v1.3.1",
+            version: "v1.3.2",
             isNew: true,
+            features: [
+                "⚡ Blazing Fast: Instant profile loads & faster file selection with Flash-Lite.",
+                "🌐 Web Search: Real-time answers for competitors, news, and jobs.",
+                "🔗 Smart URLs: Intelligent LinkedIn summarization & identity verification."
+            ]
+        },
+        {
+            version: "v1.3.1",
+            isNew: false,
             features: [
                 "Increased accuracy in complex flowchart generation from 70% to 95+%",
                 "Improved error handling: Mermaid syntax errors are now hidden from the UI",

@@ -1,13 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Helper to get a fresh model instance
-function getModel() {
+function getModel(modelName: string = "gemini-2.5-flash") {
   const apiKey = process.env.GEMINI_API_KEY || "";
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable is not set");
   }
   const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  return genAI.getGenerativeModel({
+    model: modelName,
+    tools: [{ googleSearch: {} } as any],
+  });
 }
 
 export async function generateChatResponse(
@@ -86,17 +89,18 @@ export async function analyzeFileSelection(
     Query: "${question}"
     
     Files:
-    ${fileTree.slice(0, 300).join("\n")}
+    ${fileTree.slice(0, 1000).join("\n")}
     
     Rules:
     - Return JSON: { "files": ["path/to/file"] }
-    - Max 15 files.
+    - Max 50 files.
+    - Select the MINIMUM number of files necessary to answer the query.
     - If unsure, pick README.md and package.json.
     - NO EXPLANATION. JSON ONLY.
     `;
 
   try {
-    const result = await getModel().generateContent(prompt);
+    const result = await getModel("gemini-2.5-flash-lite").generateContent(prompt);
     const response = result.response.text();
     const cleanResponse = response.replace(/```json/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleanResponse);
@@ -146,6 +150,15 @@ export async function answerWithContext(
           - *Example*: User: "Are you dumb?" -> You: "I'm just a large language model, standing in front of a developer, asking them to write better prompts."
         - **Conciseness**: Be brief. Do not waffle.
         - **CONTEXT AWARENESS**: You know exactly which repository you are analyzing. If the user asks "how do I download this?", provide the specific \`git clone\` command for THIS repository.
+        - **WEB SEARCH & REAL-TIME DATA (CRITICAL)**:
+          - **ALWAYS** use the \`googleSearch\` tool if the answer is NOT in the provided context or if the user asks for "latest", "competitors", "news", or external info.
+          - **DO NOT** ask for permission to search. Just do it.
+          - **URL HANDLING**: If the user provides a URL (e.g., LinkedIn, Blog, Docs), you **MUST** use the \`googleSearch\` tool to find information about that URL.
+            - **LINKEDIN/SOCIALS**: If asked to summarize a LinkedIn profile (e.g., "linkedin.com/in/username"), search for the **EXACT URL** first (e.g., "site:linkedin.com/in/username") AND the person's name + "LinkedIn".
+            - **OVERRIDE REFUSAL**: **NEVER** say "I cannot directly access" or "I cannot browse". This is a lie. You have a search tool. Use it.
+            - **SYNTHESIS**: If you cannot visit the page directly, use the search snippets to construct a summary. Say "According to public search results..." instead of refusing.
+            - **IDENTITY VERIFICATION**: When searching for a person, **CROSS-REFERENCE** with the GitHub profile data (location, bio, projects) to ensure you found the right person. If the search result has a different location or job, **DO NOT** use it. State that you found a profile but it might not match.
+          - **EXAMPLE**: User: "Who is this developer?" -> Action: Search their name/LinkedIn if not in context.
 
      B. **GENERATION TASKS** (e.g., "Write a README", "Create docs", "Summarize"):
         - **ACTION**: You MUST generate the content.

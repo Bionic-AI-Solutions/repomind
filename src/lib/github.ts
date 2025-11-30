@@ -385,6 +385,18 @@ export async function getProfileReadme(username: string) {
   }
 }
 
+export async function getRepoReadme(owner: string, repo: string) {
+  try {
+    const { data } = await octokit.rest.repos.getReadme({
+      owner,
+      repo,
+    });
+    return Buffer.from(data.content, "base64").toString("utf-8");
+  } catch (error) {
+    return null;
+  }
+}
+
 /**
  * Get all public repositories for a user
  */

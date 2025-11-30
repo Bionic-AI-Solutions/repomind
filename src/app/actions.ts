@@ -1,6 +1,6 @@
 "use server";
 
-import { getProfile, getRepo, getRepoFileTree, getFileContent, getProfileReadme, getReposReadmes, getFileContentBatch } from "@/lib/github";
+import { getProfile, getRepo, getRepoFileTree, getFileContent, getProfileReadme, getReposReadmes, getFileContentBatch, getUserRepos, getRepoReadme } from "@/lib/github";
 import { analyzeFileSelection, answerWithContext, answerWithContextStream } from "@/lib/gemini";
 import { scanFiles, getScanSummary, groupBySeverity, type SecurityFinding, type ScanSummary } from "@/lib/security-scanner";
 import { analyzeCodeWithGemini } from "@/lib/gemini-security";
@@ -49,7 +49,15 @@ export async function fetchProfileReadme(username: string) {
 }
 
 export async function fetchUserRepos(username: string) {
-    return await getReposReadmes(username);
+    const repos = await getUserRepos(username);
+    return repos.map((repo) => ({
+        repo: repo.name,
+        content: "", // Lazy load content
+        updated_at: repo.updated_at,
+        description: repo.description,
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+    }));
 }
 
 export async function fetchRepoDetails(owner: string, repo: string) {
@@ -213,7 +221,18 @@ export async function processProfileQuery(
 
     // Add repo READMEs
     for (const readme of profileContext.repoReadmes) {
-        context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\nStars: ${readme.stars}\nForks: ${readme.forks}\n\nREADME Content:\n${readme.content}\n\n`;
+        let content = readme.content;
+        // Lazy load if content is empty and repo is mentioned
+        if (!content && query.toLowerCase().includes(readme.repo.toLowerCase())) {
+            console.log(`Lazy loading README for ${readme.repo}`);
+            content = await getRepoReadme(profileContext.username, readme.repo) || "";
+        }
+
+        if (content) {
+            context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\nStars: ${readme.stars}\nForks: ${readme.forks}\n\nREADME Content:\n${content}\n\n`;
+        } else {
+            context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\nStars: ${readme.stars}\nForks: ${readme.forks}\n(README not loaded - ask about this repo to see more details)\n\n`;
+        }
     }
 
     if (!context) {
@@ -265,14 +284,26 @@ export async function* processProfileQueryStream(
         yield { type: "status", message: "Analyzing repositories...", progress: 50 };
 
         for (const readme of profileContext.repoReadmes) {
-            context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\nStars: ${readme.stars}\nForks: ${readme.forks}\n\nREADME Content:\n${readme.content}\n\n`;
+            let content = readme.content;
+            // Lazy load if content is empty and repo is mentioned
+            if (!content && query.toLowerCase().includes(readme.repo.toLowerCase())) {
+                yield { type: "status", message: `Reading ${readme.repo}...`, progress: 60 };
+                content = await getRepoReadme(profileContext.username, readme.repo) || "";
+            }
+
+            if (content) {
+                context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\nStars: ${readme.stars}\nForks: ${readme.forks}\n\nREADME Content:\n${content}\n\n`;
+            } else {
+                context += `\n--- REPO: ${readme.repo} ---\nLast Updated: ${readme.updated_at}\nDescription: ${readme.description || 'N/A'}\nStars: ${readme.stars}\nForks: ${readme.forks}\n(README not loaded - ask about this repo to see more details)\n\n`;
+            }
         }
 
         if (!context) {
             context = `No profile README or repository READMEs found for ${profileContext.username}.`;
         }
 
-        yield { type: "status", message: "Generating response...", progress: 80 };
+        yield { type: "status", message: "Thinking & Checking Real-time Data...", progress: 85 };
+        // yield { type: "status", message: "Generating response...", progress: 90 }; // Removed to prevent overwriting the search status too quickly
 
         const stream = answerWithContextStream(
             query,

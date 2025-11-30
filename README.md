@@ -8,6 +8,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![Gemini AI](https://img.shields.io/badge/Gemini-2.5_Flash-blue)](https://ai.google.dev/)
+[![Gemini AI](https://img.shields.io/badge/Gemini-2.5_Flash_Lite-red)](https://ai.google.dev/)
+
+<br/>
+
+[![Total Queries](https://repomind-ai.vercel.app/api/stats/card)](https://repomind-ai.vercel.app/admin/stats)
+
+<br/>
 
 **[Try RepoMind now!](https://repomind-ai.vercel.app)** 
 
@@ -37,6 +44,31 @@ RepoMind uses **Context Augmented Generation (CAG)**, not traditional RAG. We do
 | **Retrieval** | Similarity Search (Vector DB) | **AI Agent Selection** + **Smart Caching** |
 | **Context** | Fragmented | **Coherent & Complete** |
 | **Memory** | None (Stateless) | **KV Cache** (Remembers relevant files) |
+
+### 🔄 Workflow Architecture
+
+```mermaid
+graph TD
+    User[User Query] -->|Input| Engine[Context-Aware Engine]
+    
+    subgraph "⚡ Blazing Fast Optimization"
+        Engine -->|Lazy Load| Profile[Profile Metadata]
+        Engine -->|Flash-Lite| Select[Smart File Selection]
+        Select -->|Minimizes Tokens| Context[Relevant Context]
+    end
+    
+    subgraph "🌐 Native Web Search"
+        Engine -->|Unknown Topic?| Search[Google Search]
+        Search -->|Real-time Data| Synthesis[Answer Synthesis]
+    end
+    
+    Context --> Synthesis
+    Profile --> Synthesis
+    Synthesis -->|Stream| UI[Chat Interface]
+```
+
+### 📈 Evolution & Updates
+We are constantly improving RepoMind. Check out our **[CHANGELOG.md](CHANGELOG.md)** for the full history of updates, including our journey from v1 to the latest **v1.3.2**.
 
 ### 📊 Visual Architecture Maps
 - **Auto-Generated Diagrams**: Instantly turn complex code logic into clear Mermaid flowcharts and sequence diagrams.
