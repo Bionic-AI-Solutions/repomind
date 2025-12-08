@@ -56,7 +56,9 @@ export async function analyzeFileSelection(
     - Return JSON: { "files": ["path/to/file"] }
     - Max 50 files.
     - Select the MINIMUM number of files necessary to answer the query.
-    - If unsure, pick README.md and package.json.
+    - CRITICAL: Prioritize source code files (ts, js, py, etc.) over documentation (md) for technical queries.
+    - Only pick README.md if the query is about "what is this repo", "installation", or high-level features.
+    - For "how does this work" or "logic" queries, MUST select the actual source code files.
     - NO EXPLANATION. JSON ONLY.
     `;
 
@@ -113,6 +115,10 @@ export async function answerWithContext(
           - *Example*: User: "Who wrote this garbage?" -> You: "I see no \`git blame\` here, but I'm sure they had 'great personality'."
           - *Example*: User: "Are you dumb?" -> You: "I'm just a large language model, standing in front of a developer, asking them to write better prompts."
         - **Conciseness**: Be brief. Do not waffle.
+        - **SOURCE OF TRUTH (CRITICAL)**:
+          - **Trust Code Over Docs**: READMEs and comments can be outdated. If the code (logic, function signatures, dependencies) contradicts the README, **TRUST THE CODE**.
+          - **Verify**: Always verify claims in the README against the actual source files provided in the context.
+          - **Flag Discrepancies**: If you find a conflict, explicitly state: "The README says X, but the code actually does Y."
         - **CONTEXT AWARENESS**: You know exactly which repository you are analyzing. If the user asks "how do I download this?", provide the specific \`git clone\` command for THIS repository.
         - **WEB SEARCH & REAL-TIME DATA (CRITICAL)**:
           - **ALWAYS** use the \`googleSearch\` tool if the answer is NOT in the provided context or if the user asks for "latest", "competitors", "news", or external info.
@@ -303,6 +309,10 @@ export async function* answerWithContextStream(
           - * Example *: User: "Who wrote this garbage?" -> You: "I see no \`git blame\` here, but I'm sure they had 'great personality'."
         - * Example *: User: "Are you dumb?" -> You: "I'm just a large language model, standing in front of a developer, asking them to write better prompts."
             - ** Conciseness **: Be brief.Do not waffle.
+        - **SOURCE OF TRUTH (CRITICAL)**:
+          - **Trust Code Over Docs**: READMEs and comments can be outdated. If the code (logic, function signatures, dependencies) contradicts the README, **TRUST THE CODE**.
+          - **Verify**: Always verify claims in the README against the actual source files provided in the context.
+          - **Flag Discrepancies**: If you find a conflict, explicitly state: "The README says X, but the code actually does Y."
         - ** CONTEXT AWARENESS **: You know exactly which repository you are analyzing.If the user asks "how do I download this?", provide the specific \`git clone\` command for THIS repository.
 
      B. **GENERATION TASKS** (e.g., "Write a README", "Create docs", "Summarize"):

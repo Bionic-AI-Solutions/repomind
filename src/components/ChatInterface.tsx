@@ -78,18 +78,14 @@ const MessageContent = ({ content, messageId }: { content: string, messageId: st
                     }
                 }
 
-                return match ? (
+                const contentStr = String(children);
+                const isBlock = contentStr.endsWith('\n');
+                const shouldRenderBlock = match || isBlock || (inline === false);
+
+                return shouldRenderBlock ? (
                     <CodeBlock
-                        language={match[1]}
-                        value={String(children).replace(/\n$/, "")}
-                        components={componentsRef.current}
-                    />
-                ) : !inline ? (
-                    // Treat non-inline code (triple backticks without language) as markdown block
-                    // This allows Preview/Raw toggle which is useful for mixed content
-                    <CodeBlock
-                        language="markdown"
-                        value={String(children).replace(/\n$/, "")}
+                        language={match ? match[1] : "markdown"}
+                        value={contentStr.replace(/\n$/, "")}
                         components={componentsRef.current}
                     />
                 ) : (

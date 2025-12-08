@@ -83,10 +83,18 @@ const MessageContent = ({ content, messageId }: { content: string, messageId: st
                     }
                 }
 
-                return match ? (
+                const contentStr = String(children);
+                const isBlock = contentStr.endsWith('\n');
+                // ProfileChatInterface doesn't have inline prop in destructuring, but we can check if it was passed in props
+                // actually we destructured it in ChatInterface but here it was ...props. 
+                // Let's destructure it for clarity or just use props.inline
+                const inline = (props as any).inline;
+                const shouldRenderBlock = match || isBlock || (inline === false);
+
+                return shouldRenderBlock ? (
                     <CodeBlock
-                        language={match[1]}
-                        value={String(children).replace(/\n$/, "")}
+                        language={match ? match[1] : "markdown"}
+                        value={contentStr.replace(/\n$/, "")}
                         components={componentsRef.current}
                     />
                 ) : (
