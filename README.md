@@ -123,7 +123,13 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
 ### Prerequisites
 - **Node.js** 18+ and npm
 - **GitHub Personal Access Token** ([Create one here](https://github.com/settings/tokens))
-- **Google Gemini API Key** ([Get one here](https://ai.google.dev/))
+- **AI Provider API Key** (choose one):
+  - **Google Gemini API Key** ([Get one here](https://ai.google.dev/)) - Default
+  - **OpenAI API Key** ([Get one here](https://platform.openai.com/)) - Optional
+  - **Anthropic API Key** ([Get one here](https://console.anthropic.com/)) - Optional
+- **Cache Provider** (choose one):
+  - **Vercel KV** - Default (requires Vercel KV setup)
+  - **Redis** - Optional (standard Redis instance)
 
 ### Installation
 
@@ -148,15 +154,35 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
     # GitHub Token
     GITHUB_TOKEN="your_github_token"
 
-    # Gemini API Key
+    # AI Provider Configuration
+    # Choose one: gemini (default), openai, anthropic, or openai-compatible
+    AI_PROVIDER=gemini
+    
+    # Gemini (default)
     GEMINI_API_KEY="your_gemini_api_key"
-
-    #Caching Vercel KV
+    GEMINI_MODEL="gemini-2.5-flash"  # Optional, defaults to gemini-2.5-flash
+    
+    # OpenAI (if using OpenAI or OpenAI-compatible APIs)
+    OPENAI_API_KEY="your_openai_api_key"
+    OPENAI_MODEL="gpt-4"  # Optional, defaults to gpt-4
+    OPENAI_BASE_URL="https://api.openai.com/v1"  # Optional, for OpenAI-compatible APIs (Ollama, LM Studio, etc.)
+    
+    # Anthropic (if using Claude)
+    ANTHROPIC_API_KEY="your_anthropic_api_key"
+    ANTHROPIC_MODEL="claude-3-5-sonnet-20241022"  # Optional
+    
+    # Cache Provider Configuration
+    # Choose one: vercel-kv (default) or redis
+    CACHE_PROVIDER=vercel-kv
+    
+    # Vercel KV (default)
     KV_REST_API_READ_ONLY_TOKEN="your_kv_rest_api_read_only_token"
     KV_REST_API_TOKEN="your_kv_rest_api_token"
     KV_REST_API_URL="your_kv_rest_api_url"
     KV_URL="your_kv_url"
-    REDIS_URL="your_redis_url"
+    
+    # Redis (if using standard Redis)
+    REDIS_URL="redis://localhost:6379"  # or redis://user:pass@host:port
    ```
 
 4. **Run the development server**
@@ -167,6 +193,26 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
 5. **Open the app**
    
    Visit [http://localhost:3000](http://localhost:3000) in your browser
+
+### Provider Selection Guide
+
+#### AI Provider Options
+
+RepoMind supports multiple AI providers. Choose based on your needs:
+
+- **Gemini (Default)**: Free tier available, fast responses, supports Google Search tool
+- **OpenAI**: GPT-4 and GPT-3.5 models, excellent code understanding
+- **OpenAI-Compatible**: Use with local models (Ollama, LM Studio) or other OpenAI-compatible APIs
+- **Anthropic**: Claude models, excellent for long context and reasoning
+
+Set `AI_PROVIDER=gemini|openai|anthropic|openai-compatible` in your `.env.local`.
+
+#### Cache Provider Options
+
+- **Vercel KV (Default)**: Managed Redis by Vercel, easy setup, works out of the box on Vercel
+- **Redis**: Standard Redis instance, more control, works anywhere
+
+Set `CACHE_PROVIDER=vercel-kv|redis` in your `.env.local`. The system will auto-detect if only one is configured.
 
 ## 📖 Usage Examples
 
@@ -222,7 +268,7 @@ RepoMind includes a powerful DevTools panel accessible via the wrench icon:
 
 ### ✅ Quality Analysis
 - **Metrics**: Cyclomatic complexity, LOC, function count, maintainability index
-- **AI Review**: Gemini-powered analysis for style, bugs, best practices
+- **AI Review**: AI-powered analysis for style, bugs, best practices (supports multiple providers)
 - **Severity Levels**: Critical, high, medium, low issue classification
 - **Suggestions**: Actionable recommendations with line numbers
 
@@ -268,8 +314,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Built with amazing open-source technologies:
 - [Next.js](https://nextjs.org/) - React framework
-- [Google Gemini](https://ai.google.dev/) - AI model
+- [Google Gemini](https://ai.google.dev/) - AI model (default)
+- [OpenAI](https://platform.openai.com/) - AI model (optional)
+- [Anthropic Claude](https://www.anthropic.com/) - AI model (optional)
 - [Vercel](https://vercel.com/) - Hosting and KV storage
+- [Redis](https://redis.io/) - Cache storage (optional)
 - [GitHub](https://github.com/) - Repository data
 - [Tailwind CSS](https://tailwindcss.com/) - Styling
 - [Framer Motion](https://www.framer.com/motion/) - Animations

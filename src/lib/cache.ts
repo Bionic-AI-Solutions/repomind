@@ -1,8 +1,9 @@
-import { kv } from "@vercel/kv";
+import { getCacheProvider } from "./cache-provider/factory";
 
 /**
- * Vercel KV caching utilities for GitHub API responses
- * Gracefully degrades when KV is unavailable
+ * Cache utilities for GitHub API responses
+ * Works with both Vercel KV and standard Redis
+ * Gracefully degrades when cache is unavailable
  */
 
 // Cache TTLs (in seconds)
@@ -10,12 +11,12 @@ const TTL_FILE = 3600; // 1 hour
 const TTL_REPO = 900; // 15 minutes
 const TTL_PROFILE = 1800; // 30 minutes
 
-// Helper to handle KV errors gracefully
-async function safeKvOperation<T>(operation: () => Promise<T>): Promise<T | null> {
+// Helper to handle cache errors gracefully
+async function safeCacheOperation<T>(operation: () => Promise<T>): Promise<T | null> {
     try {
         return await operation();
     } catch (error) {
-        console.warn("KV operation failed (gracefully degrading):", error);
+        console.warn("Cache operation failed (gracefully degrading):", error);
         return null;
     }
 }
@@ -31,7 +32,8 @@ export async function cacheFile(
     content: string
 ): Promise<void> {
     const key = `file:${owner}/${repo}:${path}:${sha}`;
-    await safeKvOperation(() => kv.setex(key, TTL_FILE, content));
+    const cache = getCacheProvider();
+    await safeCacheOperation(() => cache.setex(key, TTL_FILE, content));
 }
 
 /**
@@ -45,7 +47,8 @@ export async function getCachedFile(
     sha: string
 ): Promise<string | null> {
     const key = `file:${owner}/${repo}:${path}:${sha}`;
-    return await safeKvOperation(() => kv.get<string>(key));
+    const cache = getCacheProvider();
+    return await safeCacheOperation(() => cache.get<string>(key));
 }
 
 /**
@@ -58,7 +61,8 @@ export async function cacheRepoMetadata(
     ttl: number = TTL_REPO
 ): Promise<void> {
     const key = `repo:${owner}/${repo}`;
-    await safeKvOperation(() => kv.setex(key, ttl, data));
+    const cache = getCacheProvider();
+    await safeCacheOperation(() => cache.setex(key, ttl, data));
 }
 
 /**
@@ -69,7 +73,8 @@ export async function getCachedRepoMetadata(
     repo: string
 ): Promise<any | null> {
     const key = `repo:${owner}/${repo}`;
-    return await safeKvOperation(() => kv.get<any>(key));
+    const cache = getCacheProvider();
+    return await safeCacheOperation(() => cache.get<any>(key));
 }
 
 /**
@@ -81,7 +86,8 @@ export async function cacheProfileData(
     ttl: number = TTL_PROFILE
 ): Promise<void> {
     const key = `profile:${username}`;
-    await safeKvOperation(() => kv.setex(key, ttl, data));
+    const cache = getCacheProvider();
+    await safeCacheOperation(() => cache.setex(key, ttl, data));
 }
 
 /**
@@ -89,7 +95,8 @@ export async function cacheProfileData(
  */
 export async function getCachedProfileData(username: string): Promise<any | null> {
     const key = `profile:${username}`;
-    return await safeKvOperation(() => kv.get<any>(key));
+    const cache = getCacheProvider();
+    return await safeCacheOperation(() => cache.get<any>(key));
 }
 
 /**
@@ -102,7 +109,8 @@ export async function cacheFileTree(
     tree: any[]
 ): Promise<void> {
     const key = `tree:${owner}/${repo}:${branch}`;
-    await safeKvOperation(() => kv.setex(key, TTL_REPO, tree));
+    const cache = getCacheProvider();
+    await safeCacheOperation(() => cache.setex(key, TTL_REPO, tree));
 }
 
 export async function getCachedFileTree(
@@ -111,7 +119,8 @@ export async function getCachedFileTree(
     branch: string
 ): Promise<any[] | null> {
     const key = `tree:${owner}/${repo}:${branch}`;
-    return await safeKvOperation(() => kv.get<any[]>(key));
+    const cache = getCacheProvider();
+    return await safeCacheOperation(() => cache.get<any[]>(key));
 }
 
 /**
@@ -127,8 +136,9 @@ export async function cacheQuerySelection(
     // Normalize query to lowercase and trim to increase hit rate
     const normalizedQuery = query.toLowerCase().trim();
     const key = `query:${owner}/${repo}:${normalizedQuery}`;
+    const cache = getCacheProvider();
     // Cache for 24 hours - queries usually yield same files
-    await safeKvOperation(() => kv.setex(key, 86400, files));
+    await safeCacheOperation(() => cache.setex(key, 86400, files));
 }
 
 export async function getCachedQuerySelection(
@@ -138,7 +148,8 @@ export async function getCachedQuerySelection(
 ): Promise<string[] | null> {
     const normalizedQuery = query.toLowerCase().trim();
     const key = `query:${owner}/${repo}:${normalizedQuery}`;
-    return await safeKvOperation(() => kv.get<string[]>(key));
+    const cache = getCacheProvider();
+    return await safeCacheOperation(() => cache.get<string[]>(key));
 }
 
 /**
@@ -159,9 +170,10 @@ export async function getCacheStats(): Promise<{
     keys?: number;
 }> {
     try {
+        const cache = getCacheProvider();
         // Simple health check
-        await kv.ping();
-        return { available: true };
+        const isAvailable = await cache.ping();
+        return { available: isAvailable };
     } catch (error) {
         return { available: false };
     }

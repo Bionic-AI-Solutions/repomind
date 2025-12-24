@@ -1,12 +1,13 @@
 import { ImageResponse } from 'next/og';
-import { kv } from "@vercel/kv";
+import { getCacheProvider } from "@/lib/cache-provider/factory";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const totalQueries = await kv.get<number>("queries:total");
+        const cache = getCacheProvider();
+        const totalQueries = await cache.get<number>("queries:total");
         const count = totalQueries || 0;
         const formattedCount = count.toLocaleString();
 

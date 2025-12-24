@@ -1,49 +1,10 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-// Helper to get a fresh model instance
-function getModel(modelName: string = "gemini-2.5-flash") {
-  const apiKey = process.env.GEMINI_API_KEY || "";
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is not set");
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({
-    model: modelName,
-    tools: [{ googleSearch: {} } as any],
-  });
-}
-
-export async function generateChatResponse(
-  history: { role: "user" | "model"; parts: string }[],
-  context?: string
-) {
-  const chat = getModel().startChat({
-    history: history.map((h) => ({
-      role: h.role,
-      parts: [{ text: h.parts }],
-    })),
-  });
-
-  let prompt = "";
-  if (context) {
-    prompt += `CONTEXT:\n${context}\n\n`;
-  }
-
-  // We assume the last message is the new user prompt, but startChat manages history.
-  // Actually, startChat takes the *past* history. The new message is sent via sendMessage.
-  // So we shouldn't pass the *entire* history to startChat if we want to send a new message.
-  // But for a stateless API route, we usually pass the whole history.
-  // Let's adjust: The caller should pass history *excluding* the current new message, 
-  // or we just use generateContent if we want to manage it manually.
-  // For simplicity in this "Context-Aware" flow, we might want to just use generateContent with a constructed prompt
-  // or use startChat with the full history.
-
-  // Let's assume the caller handles the "last message" logic.
-  // If we are just generating a response to the *latest* input which is NOT in history yet:
-  return chat;
-}
-
+import { getAIProvider } from "./ai-provider/factory";
 import { cacheQuerySelection, getCachedQuerySelection } from "./cache";
+
+// Helper to get the AI provider instance
+function getProvider() {
+  return getAIProvider();
+}
 
 export async function analyzeFileSelection(
   question: string,
@@ -100,8 +61,11 @@ export async function analyzeFileSelection(
     `;
 
   try {
-    const result = await getModel("gemini-2.5-flash-lite").generateContent(prompt);
-    const response = result.response.text();
+    const provider = getProvider();
+    const response = await provider.generateContent(prompt, {
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
+      tools: [{ type: "googleSearch" }],
+    });
     const cleanResponse = response.replace(/```json/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleanResponse);
 
@@ -300,8 +264,10 @@ export async function answerWithContext(
     Answer:
     `;
 
-  const result = await getModel().generateContent(prompt);
-  return result.response.text();
+  const provider = getProvider();
+  return await provider.generateContent(prompt, {
+    tools: [{ type: "googleSearch" }],
+  });
 }
 
 /**
@@ -479,14 +445,13 @@ export async function* answerWithContextStream(
     Answer:
   `;
 
-  const result = await getModel().generateContentStream(prompt);
+  const provider = getProvider();
+  const stream = provider.generateContentStream(prompt, {
+    tools: [{ type: "googleSearch" }],
+  });
 
-
-  for await (const chunk of result.stream) {
-    const text = chunk.text();
-    if (text) {
-      yield text;
-    }
+  for await (const chunk of stream) {
+    yield chunk;
   }
 }
 
@@ -516,8 +481,8 @@ Return ONLY the corrected Mermaid code in a markdown code block. Do not explain.
 [corrected code here]
 \`\`\``;
 
-    const result = await getModel().generateContent(prompt);
-    const response = result.response.text();
+    const provider = getProvider();
+    const response = await provider.generateContent(prompt);
 
     // Extract code from markdown block
     const match = response.match(/```mermaid\s*([\s\S]*?)\s*```/);

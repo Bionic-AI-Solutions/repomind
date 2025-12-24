@@ -1,12 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getAIProvider } from "./ai-provider/factory";
 import type { SecurityFinding } from "./security-scanner";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import type { FunctionDeclaration } from "./ai-provider/interface";
 
 /**
- * Gemini function declarations for security analysis
+ * Security analysis function declarations (provider-agnostic)
  */
-const securityAnalysisFunctions = [
+const securityAnalysisFunctions: FunctionDeclaration[] = [
     {
         name: 'report_sql_injection',
         description: 'Report a potential SQL injection vulnerability',
@@ -93,10 +92,7 @@ export async function analyzeCodeWithGemini(
     files: Array<{ path: string; content: string }>
 ): Promise<SecurityFinding[]> {
     try {
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-2.5-flash',
-            tools: [{ functionDeclarations: securityAnalysisFunctions as any }]
-        });
+        const provider = getAIProvider();
 
         // Build analysis prompt
         const filesContext = files.map(f => `
@@ -129,15 +125,17 @@ Only use reporting functions for TRUE vulnerabilities where:
 Be extremely conservative. False alarms erode trust.
 `;
 
-        const result = await model.generateContent(prompt);
-        const response = result.response;
+        const result = await provider.generateWithFunctions(
+            prompt,
+            securityAnalysisFunctions
+        );
 
         // Extract function calls
-        const functionCalls = response.functionCalls?.() || [];
+        const functionCalls = result.functionCalls;
 
         const findings: SecurityFinding[] = functionCalls
-            .map((call: any) => {
-                const args = call.args as any;
+            .map((call) => {
+                const args = call.args;
                 let title = '';
                 let cwe = '';
                 let recommendation = '';

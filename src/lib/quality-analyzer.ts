@@ -1,8 +1,6 @@
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getAIProvider } from "./ai-provider/factory";
 
 export interface QualityMetrics {
     complexity: number;
@@ -92,7 +90,7 @@ export async function analyzeCodeQuality(
 
     // 2. AI Qualitative Analysis (Zero-Cost Linter)
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const provider = getAIProvider();
 
         const prompt = `
       You are a senior code reviewer. Analyze this code file (${filename}) for quality issues.
@@ -121,8 +119,7 @@ export async function analyzeCodeQuality(
       }
     `;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = await provider.generateContent(prompt);
         const jsonMatch = text.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {

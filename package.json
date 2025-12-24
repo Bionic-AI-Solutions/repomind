@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@ast-grep/cli": "^0.34.3",
     "@babel/parser": "^7.28.5",
     "@babel/traverse": "^7.28.5",
@@ -17,6 +18,8 @@
     "@typescript-eslint/eslint-plugin": "^8.47.0",
     "@typescript-eslint/parser": "^8.47.0",
     "@vercel/kv": "^3.0.0",
+    "ioredis": "^5.4.1",
+    "openai": "^4.68.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.24",
     "gpt-tokenizer": "^3.4.0",

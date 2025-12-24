@@ -1,6 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+import { getAIProvider } from "./ai-provider/factory";
 
 /**
  * Generate documentation for code
@@ -10,7 +8,7 @@ export async function generateDocumentation(
     type: 'jsdoc' | 'readme' | 'comments' = 'jsdoc'
 ): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const provider = getAIProvider();
 
         const prompt = `
       Generate ${type.toUpperCase()} documentation for the following code.
@@ -20,8 +18,8 @@ export async function generateDocumentation(
       ${code}
     `;
 
-        const result = await model.generateContent(prompt);
-        return result.response.text().replace(/```\w*\n/g, '').replace(/```$/g, '');
+        const result = await provider.generateContent(prompt);
+        return result.replace(/```\w*\n/g, '').replace(/```$/g, '');
     } catch (error) {
         console.error('Doc generation failed:', error);
         return 'Failed to generate documentation.';
@@ -36,7 +34,7 @@ export async function generateTests(
     framework: 'jest' | 'vitest' = 'jest'
 ): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const provider = getAIProvider();
 
         const prompt = `
       Generate ${framework} unit tests for the following code.
@@ -47,8 +45,8 @@ export async function generateTests(
       ${code}
     `;
 
-        const result = await model.generateContent(prompt);
-        return result.response.text().replace(/```\w*\n/g, '').replace(/```$/g, '');
+        const result = await provider.generateContent(prompt);
+        return result.replace(/```\w*\n/g, '').replace(/```$/g, '');
     } catch (error) {
         console.error('Test generation failed:', error);
         return '// Failed to generate tests.';
@@ -60,7 +58,7 @@ export async function generateTests(
  */
 export async function suggestRefactoring(code: string): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const provider = getAIProvider();
 
         const prompt = `
       Suggest a refactoring for this code to improve readability and performance.
@@ -84,8 +82,8 @@ export async function suggestRefactoring(code: string): Promise<string> {
       ${code}
     `;
 
-        const result = await model.generateContent(prompt);
-        return result.response.text();
+        const result = await provider.generateContent(prompt);
+        return result;
     } catch (error) {
         return 'Failed to generate suggestions.';
     }

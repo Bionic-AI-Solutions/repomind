@@ -1,4 +1,4 @@
-import { kv } from "@vercel/kv";
+import { getCacheProvider } from "./cache-provider/factory";
 
 export interface AnalyticsData {
     totalVisitors: number;
@@ -31,8 +31,9 @@ export async function trackEvent(
     }
 ) {
     try {
+        const cache = getCacheProvider();
         const timestamp = Date.now();
-        const pipeline = kv.pipeline();
+        const pipeline = cache.pipeline();
 
         // 1. Add to global visitors set
         pipeline.sadd("visitors", visitorId);
@@ -41,7 +42,7 @@ export async function trackEvent(
         const visitorKey = `visitor:${visitorId}`;
 
         // Only set static data if not already present (to avoid overwriting firstSeen)
-        const exists = await kv.exists(visitorKey);
+        const exists = await cache.exists(visitorKey);
         if (!exists) {
             pipeline.hset(visitorKey, {
                 firstSeen: timestamp,
@@ -86,14 +87,15 @@ export async function trackEvent(
 export async function getAnalyticsData(): Promise<AnalyticsData> {
     try {
         // Parallelize fetching independent data
+        const cache = getCacheProvider();
         const [
             totalVisitors,
             totalQueries,
             visitorIds
         ] = await Promise.all([
-            kv.scard("visitors"),
-            kv.get<number>("queries:total"),
-            kv.smembers("visitors")
+            cache.scard("visitors"),
+            cache.get<number>("queries:total"),
+            cache.smembers("visitors")
         ]);
 
         // Fetch details for all visitors (limit to last 100 for performance if needed, but fetching all for now)
@@ -110,9 +112,9 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
             };
         }
 
-        const pipeline = kv.pipeline();
+        const pipeline = cache.pipeline();
         visitorIds.forEach(id => pipeline.hgetall(`visitor:${id}`));
-        const visitorsDetails = await pipeline.exec<VisitorData[]>();
+        const visitorsDetails = await pipeline.exec<Record<string, any>>();
 
         // Process visitors to build the report
         const recentVisitors: VisitorData[] = [];
@@ -125,11 +127,15 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
         const countryStats: Record<string, number> = {};
 
         visitorsDetails.forEach((details, index) => {
-            if (!details) return;
+            if (!details || !visitorIds[index]) return;
 
-            const visitor = {
-                ...details,
-                id: visitorIds[index]
+            const visitor: VisitorData = {
+                id: visitorIds[index],
+                country: (details.country as string) || 'Unknown',
+                device: (details.device as string) || 'unknown',
+                lastSeen: typeof details.lastSeen === 'number' ? details.lastSeen : parseInt(String(details.lastSeen || Date.now())) || Date.now(),
+                queryCount: typeof details.queryCount === 'number' ? details.queryCount : parseInt(String(details.queryCount || 0)) || 0,
+                firstSeen: typeof details.firstSeen === 'number' ? details.firstSeen : parseInt(String(details.firstSeen || Date.now())) || Date.now(),
             };
 
             recentVisitors.push(visitor);
