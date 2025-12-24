@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: development
+
+bases:
+  - ../../base
+
+patches:
+  - path: deployment-patch.yaml
+    target:
+      kind: Deployment
+
+configMapGenerator:
+  - name: repomind-config
+    behavior: merge
+    literals:
+      - cluster-ai-model=/app/models/text_generation/qwen2.5-7b-instruct
+      - cache-provider=redis
+      - NODE_ENV=development
+

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: repomind-config
+data:
+  # Cluster AI Configuration
+  cluster-ai-model: "/app/models/text_generation/qwen2.5-7b-instruct"
+  cluster-ai-path: "/mcp"
+  
+  # Cache Provider
+  cache-provider: "redis"
+  
+  # Application Configuration
+  app-name: "repomind"
+  app-version: "1.0.0"
+  
+  # Feature Flags
+  feature-cluster-ai: "true"
+  feature-analytics: "true"
+

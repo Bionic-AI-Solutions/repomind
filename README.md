@@ -155,8 +155,19 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
     GITHUB_TOKEN="your_github_token"
 
     # AI Provider Configuration
-    # Choose one: gemini (default), openai, anthropic, or openai-compatible
+    # Choose one: gemini (default), openai, anthropic, openai-compatible, or cluster-ai
     AI_PROVIDER=gemini
+    
+    # Cluster AI (Kubernetes cluster AI infrastructure - recommended for cost savings)
+    CLUSTER_AI_ENABLED=false  # Set to true to use cluster AI
+    CLUSTER_AI_ENDPOINT=https://api.askcollections.com  # External ingress URL
+    CLUSTER_AI_PATH=/mcp  # API path (/mcp or /api)
+    CLUSTER_AI_MODEL=/app/models/text_generation/qwen2.5-7b-instruct  # Optional, model override
+    CLUSTER_AI_API_KEY=  # Optional, if authentication required
+    # Internal cluster access (auto-detected if running in Kubernetes):
+    # CLUSTER_AI_SERVICE=mcp-api-server  # Service name
+    # CLUSTER_AI_NAMESPACE=ai-infrastructure  # Namespace
+    # CLUSTER_AI_SERVICE_URL=http://mcp-api-server.ai-infrastructure.svc.cluster.local:8000/mcp
     
     # Gemini (default)
     GEMINI_API_KEY="your_gemini_api_key"
@@ -200,12 +211,19 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
 
 RepoMind supports multiple AI providers. Choose based on your needs:
 
+- **Cluster AI (Recommended)**: Use Kubernetes cluster's internal AI infrastructure - no external API costs, fast responses
 - **Gemini (Default)**: Free tier available, fast responses, supports Google Search tool
 - **OpenAI**: GPT-4 and GPT-3.5 models, excellent code understanding
 - **OpenAI-Compatible**: Use with local models (Ollama, LM Studio) or other OpenAI-compatible APIs
 - **Anthropic**: Claude models, excellent for long context and reasoning
 
-Set `AI_PROVIDER=gemini|openai|anthropic|openai-compatible` in your `.env.local`.
+**Cluster AI Configuration:**
+- Set `CLUSTER_AI_ENABLED=true` to use cluster AI (highest priority)
+- Or set `AI_PROVIDER=cluster-ai` to explicitly use cluster AI
+- Auto-detects internal vs external access based on environment
+- Falls back to external providers if cluster unavailable
+
+Set `AI_PROVIDER=gemini|openai|anthropic|openai-compatible|cluster-ai` in your `.env.local`.
 
 #### Cache Provider Options
 
@@ -213,6 +231,27 @@ Set `AI_PROVIDER=gemini|openai|anthropic|openai-compatible` in your `.env.local`
 - **Redis**: Standard Redis instance, more control, works anywhere
 
 Set `CACHE_PROVIDER=vercel-kv|redis` in your `.env.local`. The system will auto-detect if only one is configured.
+
+### Kubernetes Deployment
+
+RepoMind includes Kubernetes manifests for deployment to your cluster:
+
+```bash
+# Apply base configuration
+kubectl apply -k k8s/base
+
+# Or use environment-specific overlays
+kubectl apply -k k8s/overlays/production
+```
+
+**Key Features:**
+- Automatic cluster AI integration when deployed in-cluster
+- Health and readiness probes
+- Resource limits and requests
+- ConfigMap and Secret management
+- Ingress configuration
+
+See `docs/migration-to-cluster-ai.md` for detailed deployment instructions.
 
 ## 📖 Usage Examples
 
@@ -314,9 +353,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Built with amazing open-source technologies:
 - [Next.js](https://nextjs.org/) - React framework
+- [Kubernetes](https://kubernetes.io/) - Container orchestration and cluster AI
 - [Google Gemini](https://ai.google.dev/) - AI model (default)
 - [OpenAI](https://platform.openai.com/) - AI model (optional)
 - [Anthropic Claude](https://www.anthropic.com/) - AI model (optional)
+- [Cluster AI](https://github.com/Bionic-AI-Solutions) - Internal Kubernetes AI infrastructure
 - [Vercel](https://vercel.com/) - Hosting and KV storage
 - [Redis](https://redis.io/) - Cache storage (optional)
 - [GitHub](https://github.com/) - Repository data
