@@ -11,12 +11,19 @@ const TTL_FILE = 3600; // 1 hour
 const TTL_REPO = 900; // 15 minutes
 const TTL_PROFILE = 1800; // 30 minutes
 
-// Helper to handle cache errors gracefully
-async function safeCacheOperation<T>(operation: () => Promise<T>): Promise<T | null> {
+// Helper to handle cache errors gracefully with timeout
+async function safeCacheOperation<T>(operation: () => Promise<T>, timeoutMs: number = 3000): Promise<T | null> {
     try {
-        return await operation();
-    } catch (error) {
-        console.warn("Cache operation failed (gracefully degrading):", error);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Cache operation timed out after ${timeoutMs}ms`)), timeoutMs);
+        });
+        return await Promise.race([operation(), timeoutPromise]);
+    } catch (error: any) {
+        if (error.message?.includes("timeout")) {
+            console.warn(`Cache operation timed out after ${timeoutMs}ms (gracefully degrading)`);
+        } else {
+            console.warn("Cache operation failed (gracefully degrading):", error);
+        }
         return null;
     }
 }

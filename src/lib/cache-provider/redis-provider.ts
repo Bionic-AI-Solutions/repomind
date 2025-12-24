@@ -1,27 +1,50 @@
-import Redis from "ioredis";
+import Redis, { Cluster } from "ioredis";
 import type { CacheProvider, Pipeline } from "./interface";
 
 /**
  * Standard Redis Provider Implementation
  * Uses ioredis for Redis connectivity
+ * Supports both standalone and cluster mode
  */
 export class RedisProvider implements CacheProvider {
-  private client: Redis;
+  private client: Redis | Cluster;
 
   constructor(redisUrl?: string) {
     if (!redisUrl) {
       throw new Error("REDIS_URL environment variable is not set");
     }
 
-    this.client = new Redis(redisUrl, {
-      retryStrategy: (times) => {
+    // Check if this is a cluster connection (multiple hosts or cluster mode)
+    const isCluster = this.isClusterConnection(redisUrl);
+    
+    const baseOptions = {
+      retryStrategy: (times: number) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
       },
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
       lazyConnect: false,
-    });
+      connectTimeout: 5000, // 5 second connection timeout
+      commandTimeout: 3000, // 3 second command timeout
+    };
+
+    if (isCluster) {
+      // Parse cluster nodes from URL or use provided hosts
+      const clusterNodes = this.parseClusterNodes(redisUrl);
+      this.client = new Cluster(clusterNodes, {
+        ...baseOptions,
+        redisOptions: {
+          ...baseOptions,
+        },
+        clusterRetryStrategy: (times: number) => {
+          const delay = Math.min(times * 50, 2000);
+          return delay;
+        },
+      });
+    } else {
+      this.client = new Redis(redisUrl, baseOptions);
+    }
 
     this.client.on("error", (error) => {
       console.error("Redis connection error:", error);
@@ -30,15 +53,107 @@ export class RedisProvider implements CacheProvider {
     this.client.on("connect", () => {
       console.log("Redis connected successfully");
     });
+
+    if (isCluster) {
+      this.client.on("+node", (node) => {
+        console.log(`Redis cluster node added: ${node.options.host}:${node.options.port}`);
+      });
+      this.client.on("-node", (node) => {
+        console.log(`Redis cluster node removed: ${node.options.host}:${node.options.port}`);
+      });
+    }
+  }
+
+  /**
+   * Check if the connection string indicates cluster mode
+   */
+  private isClusterConnection(redisUrl: string): boolean {
+    // Check for explicit cluster mode flag
+    if (redisUrl.includes("cluster=true") || redisUrl.includes("?cluster")) {
+      return true;
+    }
+    
+    // Check for multiple hosts (comma-separated)
+    if (redisUrl.includes(",")) {
+      return true;
+    }
+    
+    // Check if URL contains "cluster" in the hostname (e.g., redis-cluster.redis.svc.cluster.local)
+    try {
+      const url = new URL(redisUrl.startsWith("redis://") ? redisUrl : `redis://${redisUrl}`);
+      if (url.hostname.includes("cluster")) {
+        return true;
+      }
+    } catch {
+      // Invalid URL format, treat as standalone
+    }
+    
+    return false;
+  }
+
+  /**
+   * Parse cluster nodes from connection string
+   */
+  private parseClusterNodes(redisUrl: string): Array<{ host: string; port: number }> {
+    // Remove cluster flags from URL
+    const cleanUrl = redisUrl.replace(/[?&]cluster=true/gi, "").replace(/[?&]cluster/gi, "");
+    
+    // Check for multiple comma-separated hosts
+    if (cleanUrl.includes(",")) {
+      return cleanUrl.split(",").map((node) => {
+        const parsed = this.parseNodeUrl(node.trim());
+        return { host: parsed.host, port: parsed.port };
+      });
+    }
+    
+    // Single URL - parse it
+    const parsed = this.parseNodeUrl(cleanUrl);
+    return [{ host: parsed.host, port: parsed.port }];
+  }
+
+  /**
+   * Parse a single node URL
+   */
+  private parseNodeUrl(url: string): { host: string; port: number } {
+    // Handle redis:// protocol
+    if (url.startsWith("redis://")) {
+      try {
+        const parsed = new URL(url);
+        return {
+          host: parsed.hostname,
+          port: parsed.port ? parseInt(parsed.port, 10) : 6379,
+        };
+      } catch {
+        // Fall through to default parsing
+      }
+    }
+    
+    // Handle host:port format
+    const parts = url.replace("redis://", "").split(":");
+    return {
+      host: parts[0] || "localhost",
+      port: parts[1] ? parseInt(parts[1], 10) : 6379,
+    };
   }
 
   async get<T>(key: string): Promise<T | null> {
     try {
-      const value = await this.client.get(key);
+      // Add timeout wrapper for get operations
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Redis get operation timed out after 3 seconds")), 3000);
+      });
+      
+      const valuePromise = this.client.get(key);
+      const value = await Promise.race([valuePromise, timeoutPromise]);
+      
       if (value === null) return null;
       return JSON.parse(value) as T;
-    } catch (error) {
-      console.warn("Redis get failed:", error);
+    } catch (error: any) {
+      if (error.message?.includes("timeout")) {
+        console.warn("Redis get timed out, returning null:", key);
+      } else {
+        console.warn("Redis get failed:", error);
+      }
       return null;
     }
   }
@@ -58,10 +173,21 @@ export class RedisProvider implements CacheProvider {
 
   async setex(key: string, ttl: number, value: any): Promise<void> {
     try {
+      // Add timeout wrapper for setex operations
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Redis setex operation timed out after 3 seconds")), 3000);
+      });
+      
       const serialized = JSON.stringify(value);
-      await this.client.setex(key, ttl, serialized);
-    } catch (error) {
-      console.warn("Redis setex failed:", error);
+      const setexPromise = this.client.setex(key, ttl, serialized);
+      await Promise.race([setexPromise, timeoutPromise]);
+    } catch (error: any) {
+      if (error.message?.includes("timeout")) {
+        console.warn("Redis setex timed out (non-critical):", key);
+      } else {
+        console.warn("Redis setex failed:", error);
+      }
+      // Don't throw - cache failures shouldn't break the app
     }
   }
 

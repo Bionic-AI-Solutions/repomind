@@ -164,3 +164,6 @@ POST /v1/chat/completions
 4. **Context Window**: 32K tokens available
 5. **No Authentication**: Currently no auth required (verify for production)
 
+
+
+

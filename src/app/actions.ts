@@ -11,33 +11,52 @@ export async function fetchGitHubData(input: string) {
     // Input format: "username" or "owner/repo"
     const parts = input.split("/");
 
-    if (parts.length === 1) {
-        // Profile Mode
-        const username = parts[0];
-        try {
-            // We just return basic profile info here for the initial load
-            // The rest will be loaded by the client component
-            const profile = await getProfile(username);
-            return { type: "profile", data: profile };
-        } catch (e: any) {
-            console.error("Profile fetch error:", e);
-            return { error: `User not found: ${e.message || e}` };
-        }
-    } else if (parts.length === 2) {
-        // Repo Mode
-        const [owner, repo] = parts;
-        try {
-            const repoData = await getRepo(owner, repo);
-            // Use the default branch from the repo data to avoid phantom files from stale 'main' branches
-            const { tree, hiddenFiles } = await getRepoFileTree(owner, repo, repoData.default_branch);
-            return { type: "repo", data: repoData, fileTree: tree, hiddenFiles };
-        } catch (e: any) {
-            console.error("Repo fetch error:", e);
-            return { error: `Repository not found: ${e.message || e}` };
-        }
-    }
+    // Add overall timeout wrapper (90 seconds for large repos)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out after 90 seconds")), 90000);
+    });
 
-    return { error: "Invalid input format" };
+    try {
+        const resultPromise = (async () => {
+            if (parts.length === 1) {
+                // Profile Mode
+                const username = parts[0];
+                try {
+                    // We just return basic profile info here for the initial load
+                    // The rest will be loaded by the client component
+                    const profile = await getProfile(username);
+                    return { type: "profile" as const, data: profile };
+                } catch (e: any) {
+                    console.error("Profile fetch error:", e);
+                    return { error: `User not found: ${e.message || e}` };
+                }
+            } else if (parts.length === 2) {
+                // Repo Mode
+                const [owner, repo] = parts;
+                try {
+                    const repoData = await getRepo(owner, repo);
+                    // Use the default branch from the repo data to avoid phantom files from stale 'main' branches
+                    const { tree, hiddenFiles } = await getRepoFileTree(owner, repo, repoData.default_branch);
+                    return { type: "repo" as const, data: repoData, fileTree: tree, hiddenFiles };
+                } catch (e: any) {
+                    console.error("Repo fetch error:", e);
+                    const errorMessage = e.message?.includes("timeout") 
+                        ? `Repository fetch timed out: ${e.message}` 
+                        : `Repository not found: ${e.message || e}`;
+                    return { error: errorMessage };
+                }
+            }
+
+            return { error: "Invalid input format" };
+        })();
+
+        return await Promise.race([resultPromise, timeoutPromise]);
+    } catch (e: any) {
+        console.error("fetchGitHubData timeout or error:", e);
+        return { error: e.message?.includes("timeout") 
+            ? `Request timed out after 90 seconds. The repository may be too large or GitHub API is slow.` 
+            : `Failed to fetch: ${e.message || e}` };
+    }
 }
 
 export async function fetchProfile(username: string) {

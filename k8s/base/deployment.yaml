@@ -14,64 +14,68 @@ spec:
       labels:
         app: repomind
     spec:
+      imagePullSecrets:
+        - name: dockerhub-pull-secret
       containers:
-      - name: repomind
-        image: repomind:latest
-        ports:
-        - containerPort: 3000
-          name: http
-        env:
-        - name: NODE_ENV
-          value: "production"
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: repomind-secrets
-              key: github-token
-        - name: CLUSTER_AI_ENABLED
-          value: "true"
-        - name: CLUSTER_AI_SERVICE
-          value: "mcp-api-server"
-        - name: CLUSTER_AI_NAMESPACE
-          value: "ai-infrastructure"
-        - name: CLUSTER_AI_PATH
-          value: "/mcp"
-        - name: CLUSTER_AI_MODEL
-          valueFrom:
-            configMapKeyRef:
-              name: repomind-config
-              key: cluster-ai-model
-        - name: CACHE_PROVIDER
-          valueFrom:
-            configMapKeyRef:
-              name: repomind-config
-              key: cache-provider
-        - name: REDIS_URL
-          valueFrom:
-            secretKeyRef:
-              name: repomind-secrets
-              key: redis-url
-              optional: true
-        envFrom:
-        - configMapRef:
-            name: repomind-config
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: http
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 5
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-
+        - name: repomind
+          image: docker.io/docker4zerocool/repomind:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: repomind-secrets
+                  key: github-token
+            - name: AI_PROVIDER
+              value: "cluster-ai"
+            - name: CLUSTER_AI_ENABLED
+              value: "true"
+            - name: CLUSTER_AI_SERVICE
+              value: "mcp-api-server"
+            - name: CLUSTER_AI_NAMESPACE
+              value: "ai-infrastructure"
+            - name: CLUSTER_AI_PATH
+              value: "/mcp"
+            - name: CLUSTER_AI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: repomind-config
+                  key: cluster-ai-model
+            - name: CACHE_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: repomind-config
+                  key: cache-provider
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: repomind-secrets
+                  key: redis-url
+                  optional: true
+          envFrom:
+            - configMapRef:
+                name: repomind-config
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"

@@ -1,6 +1,7 @@
 # Migration Guide: External AI to Cluster AI
 
 ## Overview
+
 This guide helps you migrate RepoMind from using external paid AI APIs (OpenAI, Anthropic, Gemini) to the Kubernetes cluster's internal AI infrastructure.
 
 ## Benefits of Cluster AI
@@ -55,12 +56,12 @@ When deploying to Kubernetes, the configuration is automatic:
 ```yaml
 # In k8s/base/configmap.yaml
 env:
-- name: CLUSTER_AI_ENABLED
-  value: "true"
-- name: CLUSTER_AI_SERVICE
-  value: "mcp-api-server"
-- name: CLUSTER_AI_NAMESPACE
-  value: "ai-infrastructure"
+  - name: CLUSTER_AI_ENABLED
+    value: "true"
+  - name: CLUSTER_AI_SERVICE
+    value: "mcp-api-server"
+  - name: CLUSTER_AI_NAMESPACE
+    value: "ai-infrastructure"
 ```
 
 ### Step 3: Test the Integration
@@ -87,14 +88,14 @@ env:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CLUSTER_AI_ENABLED` | Enable cluster AI (true/false) | `false` |
-| `CLUSTER_AI_ENDPOINT` | External ingress URL | `https://api.askcollections.com` |
-| `CLUSTER_AI_PATH` | API path (`/mcp` or `/api`) | `/mcp` |
-| `CLUSTER_AI_MODEL` | Model to use | `/app/models/text_generation/qwen2.5-7b-instruct` |
-| `CLUSTER_AI_SERVICE` | Service name (in-cluster) | `mcp-api-server` |
-| `CLUSTER_AI_NAMESPACE` | Namespace (in-cluster) | `ai-infrastructure` |
+| Variable               | Description                    | Default                                           |
+| ---------------------- | ------------------------------ | ------------------------------------------------- |
+| `CLUSTER_AI_ENABLED`   | Enable cluster AI (true/false) | `false`                                           |
+| `CLUSTER_AI_ENDPOINT`  | External ingress URL           | `https://api.askcollections.com`                  |
+| `CLUSTER_AI_PATH`      | API path (`/mcp` or `/api`)    | `/mcp`                                            |
+| `CLUSTER_AI_MODEL`     | Model to use                   | `/app/models/text_generation/qwen2.5-7b-instruct` |
+| `CLUSTER_AI_SERVICE`   | Service name (in-cluster)      | `mcp-api-server`                                  |
+| `CLUSTER_AI_NAMESPACE` | Namespace (in-cluster)         | `ai-infrastructure`                               |
 
 ## Troubleshooting
 
@@ -103,6 +104,7 @@ env:
 **Symptoms**: Errors about service unavailable
 
 **Solutions**:
+
 1. Check cluster AI service health: `curl https://api.askcollections.com/health`
 2. Verify network connectivity
 3. Check if running in cluster and service discovery is working
@@ -113,6 +115,7 @@ env:
 **Symptoms**: 404 errors for model
 
 **Solutions**:
+
 1. List available models: `curl https://api.askcollections.com/mcp/v1/models`
 2. Update `CLUSTER_AI_MODEL` to match available model
 3. Check model ID format (must include full path)
@@ -122,6 +125,7 @@ env:
 **Symptoms**: Errors instead of falling back to external provider
 
 **Solutions**:
+
 1. Ensure external provider is still configured
 2. Check error handling in provider factory
 3. Verify `AI_PROVIDER` is set to a valid external provider
@@ -137,6 +141,7 @@ env:
 ### Monitoring
 
 Track these metrics:
+
 - Response time (p50, p95, p99)
 - Error rate
 - Fallback frequency
@@ -162,8 +167,11 @@ If issues occur, quickly rollback:
 ## Support
 
 For issues:
+
 1. Check cluster AI service logs: `kubectl logs -n ai-infrastructure`
 2. Review RepoMind application logs
 3. Test cluster AI endpoints directly
 4. Consult cluster AI team for infrastructure issues
+
+
 

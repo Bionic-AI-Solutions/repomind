@@ -10,7 +10,7 @@
 [![Gemini AI](https://img.shields.io/badge/Gemini-2.5_Flash-blue)](https://ai.google.dev/)
 [![Gemini AI](https://img.shields.io/badge/Gemini-2.5_Flash_Lite-red)](https://ai.google.dev/)
 
-**[Try RepoMind now!](https://repomind-ai.vercel.app)** 
+**[Try RepoMind now!](https://repomind-ai.vercel.app)**
 
 **[Ask RepoMind about RepoMind :3](https://repomind-ai.vercel.app/chat?q=403errors/repomind)**
 
@@ -25,66 +25,74 @@
 ## ✨ Features
 
 ### 🧠 Context-Aware Engine
+
 - **Smart Context Loading**: Instead of dumping entire files, RepoMind intelligently selects relevant code snippets based on your query.
 - **Noise Filtering**: Automatically ignores `node_modules`, lockfiles, and build artifacts to focus on source code.
 - **Multi-File Understanding**: Traces dependencies and imports to understand how different parts of the codebase interact.
 
 ### 🧠 CAG vs RAG: The Architecture
+
 RepoMind uses **Context Augmented Generation (CAG)**, not traditional RAG. We don't chop your code into fragmented vectors; we load full, relevant files into the model's long context window for superior understanding.
 
-| Feature | Traditional RAG | 🧠 RepoMind (CAG) |
-| :--- | :--- | :--- |
-| **Data Unit** | Small Chunks (Vectors) | **Full Files** |
+| Feature       | Traditional RAG               | 🧠 RepoMind (CAG)                          |
+| :------------ | :---------------------------- | :----------------------------------------- |
+| **Data Unit** | Small Chunks (Vectors)        | **Full Files**                             |
 | **Retrieval** | Similarity Search (Vector DB) | **AI Agent Selection** + **Smart Caching** |
-| **Context** | Fragmented | **Coherent & Complete** |
-| **Memory** | None (Stateless) | **KV Cache** (Remembers relevant files) |
+| **Context**   | Fragmented                    | **Coherent & Complete**                    |
+| **Memory**    | None (Stateless)              | **KV Cache** (Remembers relevant files)    |
 
 ### 🔄 Workflow Architecture
 
 ```mermaid
 graph TD
     User[User Query] -->|Input| Engine[Context-Aware Engine]
-    
+
     subgraph "⚡ Blazing Fast Optimization"
         Engine -->|Lazy Load| Profile[Profile Metadata]
         Engine -->|Flash-Lite| Select[Smart File Selection]
         Select -->|Minimizes Tokens| Context[Relevant Context]
     end
-    
+
     subgraph "🌐 Native Web Search"
         Engine -->|Unknown Topic?| Search[Google Search]
         Search -->|Real-time Data| Synthesis[Answer Synthesis]
     end
-    
+
     Context --> Synthesis
     Profile --> Synthesis
     Synthesis -->|Stream| UI[Chat Interface]
 ```
 
 ### 📈 Evolution & Updates
+
 We are constantly improving RepoMind. Check out our **[CHANGELOG.md](CHANGELOG.md)** for the full history of updates, including our journey from v1 to the latest **v1.3.2**.
 
 ### 📊 Visual Architecture Maps
+
 - **Auto-Generated Diagrams**: Instantly turn complex code logic into clear Mermaid flowcharts and sequence diagrams.
 - **Interactive Zoom/Pan**: Explore large diagrams with intuitive controls.
 - **Export Options**: Save diagrams as images for documentation or presentations.
 
 ### 👤 Deep Profile Intelligence (USP)
+
 - **Developer Fingerprinting**: Analyze coding style, commit patterns, and language preferences of any GitHub user.
 - **Cross-Repo Context**: Aggregate knowledge from multiple repositories to understand a developer's full skillset.
 - **Resume Generation**: Create instant technical summaries for any developer profile.
 
 ### 🛡️ Zero-Config Security Audits
+
 - **Vulnerability Scanning**: Detect SQL injections, XSS, and auth flaws without setting up CI/CD pipelines.
-- **AI-Powered Triage**: Get context-aware explanations of *why* code is vulnerable, not just static alerts.
+- **AI-Powered Triage**: Get context-aware explanations of _why_ code is vulnerable, not just static alerts.
 - **Fix Recommendations**: Receive copy-pasteable code patches to resolve security issues.
 
 ### 📱 Mobile-First Experience
+
 - **Analyze on the Go**: The only advanced code analysis tool optimized for mobile browsers.
 - **Touch-Friendly Interface**: Swipe, tap, and zoom through codebases on your phone or tablet.
 - **Responsive DevTools**: Access full debugging and search capabilities from anywhere.
 
 ### 🔍 Semantic Code Search
+
 - **Natural Language Search**: "Find where user authentication happens"
 - **Regex & AST Search**: Power-user tools for precise structural code matching.
 - **Instant Navigation**: Jump directly to relevant lines across thousands of files.
@@ -93,16 +101,16 @@ We are constantly improving RepoMind. Check out our **[CHANGELOG.md](CHANGELOG.m
 
 RepoMind is designed for **instant, zero-setup analysis**. While other tools require installation or permissions, RepoMind works immediately in your browser.
 
-| Feature | 🧠 RepoMind | 🐙 GitHub Copilot (Web) | 🦎 Greptile | 🚢 Onboard AI |
-| :--- | :---: | :---: | :---: | :---: |
-| **Platform** | **🌐 Web (Any Browser)** | 🌐 Web (GitHub.com) | 🌐 Web Dashboard | 🌐 Web Dashboard |
-| **Access** | **⚡ Instant (Public URL)** | Requires Repo Access | Requires App Install | Requires App Install |
-| **Pricing** | **💸 100% Free** | Enterprise / Paid | Paid (Free Tier) | Paid (Free Tier) |
-| **Visual Maps** | **✅ Auto-Flowcharts** | ❌ No | ❌ No | ❌ No |
-| **Profile Insights** | **✅ Developer Analysis** | ❌ No | ❌ No | ❌ No |
-| **Mobile UX** | **✅ Mobile-First** | ⚠️ Desktop Focused | ❌ Desktop Only | ❌ Desktop Only |
-| **Security Scan** | **✅ Free AI Audit** | ✅ (Advanced Security) | ❌ No | ❌ No |
-| **Tech Stack** | **Context-Aware** | Indexed Search | Proprietary Index | Vector Search |
+| Feature              |         🧠 RepoMind         | 🐙 GitHub Copilot (Web) |     🦎 Greptile      |    🚢 Onboard AI     |
+| :------------------- | :-------------------------: | :---------------------: | :------------------: | :------------------: |
+| **Platform**         |  **🌐 Web (Any Browser)**   |   🌐 Web (GitHub.com)   |   🌐 Web Dashboard   |   🌐 Web Dashboard   |
+| **Access**           | **⚡ Instant (Public URL)** |  Requires Repo Access   | Requires App Install | Requires App Install |
+| **Pricing**          |      **💸 100% Free**       |    Enterprise / Paid    |   Paid (Free Tier)   |   Paid (Free Tier)   |
+| **Visual Maps**      |   **✅ Auto-Flowcharts**    |          ❌ No          |        ❌ No         |        ❌ No         |
+| **Profile Insights** |  **✅ Developer Analysis**  |          ❌ No          |        ❌ No         |        ❌ No         |
+| **Mobile UX**        |     **✅ Mobile-First**     |   ⚠️ Desktop Focused    |   ❌ Desktop Only    |   ❌ Desktop Only    |
+| **Security Scan**    |    **✅ Free AI Audit**     | ✅ (Advanced Security)  |        ❌ No         |        ❌ No         |
+| **Tech Stack**       |      **Context-Aware**      |     Indexed Search      |  Proprietary Index   |    Vector Search     |
 
 ### 🎯 Why RepoMind?
 
@@ -121,6 +129,7 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - **Node.js** 18+ and npm
 - **GitHub Personal Access Token** ([Create one here](https://github.com/settings/tokens))
 - **AI Provider API Key** (choose one):
@@ -134,22 +143,26 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/403errors/repomind.git
    cd repomind
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp .env.example .env.local
    ```
-   
+
    Edit `.env.local` and add your keys:
+
    ```env
     # GitHub Token
     GITHUB_TOKEN="your_github_token"
@@ -157,7 +170,7 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
     # AI Provider Configuration
     # Choose one: gemini (default), openai, anthropic, openai-compatible, or cluster-ai
     AI_PROVIDER=gemini
-    
+
     # Cluster AI (Kubernetes cluster AI infrastructure - recommended for cost savings)
     CLUSTER_AI_ENABLED=false  # Set to true to use cluster AI
     CLUSTER_AI_ENDPOINT=https://api.askcollections.com  # External ingress URL
@@ -168,41 +181,42 @@ We don't just analyze code; we analyze **coders**. RepoMind is the only platform
     # CLUSTER_AI_SERVICE=mcp-api-server  # Service name
     # CLUSTER_AI_NAMESPACE=ai-infrastructure  # Namespace
     # CLUSTER_AI_SERVICE_URL=http://mcp-api-server.ai-infrastructure.svc.cluster.local:8000/mcp
-    
+
     # Gemini (default)
     GEMINI_API_KEY="your_gemini_api_key"
     GEMINI_MODEL="gemini-2.5-flash"  # Optional, defaults to gemini-2.5-flash
-    
+
     # OpenAI (if using OpenAI or OpenAI-compatible APIs)
     OPENAI_API_KEY="your_openai_api_key"
     OPENAI_MODEL="gpt-4"  # Optional, defaults to gpt-4
     OPENAI_BASE_URL="https://api.openai.com/v1"  # Optional, for OpenAI-compatible APIs (Ollama, LM Studio, etc.)
-    
+
     # Anthropic (if using Claude)
     ANTHROPIC_API_KEY="your_anthropic_api_key"
     ANTHROPIC_MODEL="claude-3-5-sonnet-20241022"  # Optional
-    
+
     # Cache Provider Configuration
     # Choose one: vercel-kv (default) or redis
     CACHE_PROVIDER=vercel-kv
-    
+
     # Vercel KV (default)
     KV_REST_API_READ_ONLY_TOKEN="your_kv_rest_api_read_only_token"
     KV_REST_API_TOKEN="your_kv_rest_api_token"
     KV_REST_API_URL="your_kv_rest_api_url"
     KV_URL="your_kv_url"
-    
+
     # Redis (if using standard Redis)
     REDIS_URL="redis://localhost:6379"  # or redis://user:pass@host:port
    ```
 
 4. **Run the development server**
+
    ```bash
    npm run dev
    ```
 
 5. **Open the app**
-   
+
    Visit [http://localhost:3000](http://localhost:3000) in your browser
 
 ### Provider Selection Guide
@@ -218,6 +232,7 @@ RepoMind supports multiple AI providers. Choose based on your needs:
 - **Anthropic**: Claude models, excellent for long context and reasoning
 
 **Cluster AI Configuration:**
+
 - Set `CLUSTER_AI_ENABLED=true` to use cluster AI (highest priority)
 - Or set `AI_PROVIDER=cluster-ai` to explicitly use cluster AI
 - Auto-detects internal vs external access based on environment
@@ -245,6 +260,7 @@ kubectl apply -k k8s/overlays/production
 ```
 
 **Key Features:**
+
 - Automatic cluster AI integration when deployed in-cluster
 - Health and readiness probes
 - Resource limits and requests
@@ -256,6 +272,7 @@ See `docs/migration-to-cluster-ai.md` for detailed deployment instructions.
 ## 📖 Usage Examples
 
 ### Analyze a Repository
+
 ```
 Enter: "facebook/react"
 Ask: "How does the reconciliation algorithm work?"
@@ -264,6 +281,7 @@ Ask: "Show me the file tree structure"
 ```
 
 ### Explore a Developer Profile
+
 ```
 Enter: "torvalds"
 Ask: "What languages does Linus primarily use?"
@@ -272,6 +290,7 @@ Ask: "What's his coding style like?"
 ```
 
 ### Security Scanning
+
 ```
 Enter: "your-org/your-repo"
 Open DevTools → Security Scan
@@ -280,6 +299,7 @@ Get actionable fix recommendations
 ```
 
 ### Code Quality Check
+
 ```
 Open DevTools → Quality Analysis
 Select a file to analyze
@@ -288,6 +308,7 @@ Get improvement suggestions
 ```
 
 ### Advanced Search
+
 ```
 Open DevTools → Search
 Search for "useState" (Text)
@@ -300,23 +321,27 @@ Search for functions named "handle" (AST)
 RepoMind includes a powerful DevTools panel accessible via the wrench icon:
 
 ### 🔍 Search
+
 - **Text Search**: Fast string matching with case sensitivity options
 - **Regex Search**: Complex pattern matching with full regex support
 - **AST Search**: Structural search for functions, classes, variables, imports
 - **Results**: File paths, line numbers, code snippets with context
 
 ### ✅ Quality Analysis
+
 - **Metrics**: Cyclomatic complexity, LOC, function count, maintainability index
 - **AI Review**: AI-powered analysis for style, bugs, best practices (supports multiple providers)
 - **Severity Levels**: Critical, high, medium, low issue classification
 - **Suggestions**: Actionable recommendations with line numbers
 
 ### ⚡ Generators
+
 - **Documentation**: Auto-generate comprehensive docs for any file
 - **Test Generation**: Create unit tests based on code structure
 - **Refactoring**: Get AI suggestions for improving code quality
 
 ### 💬 Help
+
 - Quick reference guide
 - Keyboard shortcuts
 - Feature explanations
@@ -340,6 +365,7 @@ We welcome contributions! Here's how you can help:
 5. **Open a Pull Request**
 
 ### Development Guidelines
+
 - Follow existing code style
 - Write meaningful commit messages
 - Update documentation for new features
@@ -352,6 +378,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 Built with amazing open-source technologies:
+
 - [Next.js](https://nextjs.org/) - React framework
 - [Kubernetes](https://kubernetes.io/) - Container orchestration and cluster AI
 - [Google Gemini](https://ai.google.dev/) - AI model (default)

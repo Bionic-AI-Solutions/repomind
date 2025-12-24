@@ -6,6 +6,18 @@ function getProvider() {
   return getAIProvider();
 }
 
+// Helper to get the appropriate model name based on the active provider
+function getModelName(): string | undefined {
+  // If cluster AI is enabled, use cluster AI model or let provider use default
+  const clusterAIEnabled = process.env.CLUSTER_AI_ENABLED?.toLowerCase() === "true";
+  if (clusterAIEnabled) {
+    return process.env.CLUSTER_AI_MODEL || undefined; // Let provider use default if not set
+  }
+  
+  // Otherwise use Gemini model
+  return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+}
+
 export async function analyzeFileSelection(
   question: string,
   fileTree: string[],
@@ -64,10 +76,15 @@ export async function analyzeFileSelection(
 
   try {
     const provider = getProvider();
-    const response = await provider.generateContent(prompt, {
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
+    const modelName = getModelName();
+    const options: any = {
       tools: [{ type: "googleSearch" }],
-    });
+    };
+    // Only include model if specified (let provider use default for cluster AI)
+    if (modelName) {
+      options.model = modelName;
+    }
+    const response = await provider.generateContent(prompt, options);
     const cleanResponse = response.replace(/```json/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleanResponse);
 

@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: repomind-source
+data:
+  Dockerfile: |
+    # Build stage
+    FROM node:20-alpine AS builder
+    WORKDIR /app
+    COPY package.json package-lock.json* ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build
+    
+    # Production stage
+    FROM node:20-alpine AS runner
+    WORKDIR /app
+    ENV NODE_ENV=production
+    RUN addgroup --system --gid 1001 nodejs && \
+        adduser --system --uid 1001 nextjs
+    COPY --from=builder /app/public ./public
+    COPY --from=builder /app/.next/standalone ./
+    COPY --from=builder /app/.next/static ./.next/static
+    RUN chown -R nextjs:nodejs /app
+    USER nextjs
+    EXPOSE 3000
+    ENV PORT=3000
+    ENV HOSTNAME="0.0.0.0"
+    CMD ["node", "server.js"]
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: repomind-build
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: build
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+        - --dockerfile=/workspace/Dockerfile
+        - --context=/workspace
+        - --destination=repomind:latest
+        - --no-push
+        - --tarPath=/workspace/repomind.tar
+        volumeMounts:
+        - name: source
+          mountPath: /workspace
+        - name: docker-config
+          mountPath: /kaniko/.docker
+      volumes:
+      - name: source
+        emptyDir: {}
+      initContainers:
+      - name: copy-source
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          # This is a placeholder - we'll need to copy files differently
+          echo "Source files would be copied here"
+        volumeMounts:
+        - name: source
+          mountPath: /workspace
+      - name: docker-config
+        emptyDir: {}
+
+
+
+

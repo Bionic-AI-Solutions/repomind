@@ -19,11 +19,19 @@ if (!githubToken) {
 const octokit = new Octokit({
   auth: githubToken,
   request: {
+    timeout: 30000, // 30 second timeout for GitHub API calls
     fetch: (url: string, options: any) => {
+      // Add timeout to fetch requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds
+      
       return fetch(url, {
         ...options,
         cache: "no-store",
-        next: { revalidate: 0 }
+        next: { revalidate: 0 },
+        signal: controller.signal,
+      }).finally(() => {
+        clearTimeout(timeoutId);
       });
     },
   },
@@ -128,14 +136,24 @@ export async function getRepoFileTree(owner: string, repo: string, branch: strin
   // First, get the branch SHA
   let sha = branch;
   try {
-    const { data: branchData } = await octokit.rest.repos.getBranch({
+    const branchPromise = octokit.rest.repos.getBranch({
       owner,
       repo,
       branch,
     });
+    
+    // Add timeout wrapper
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("GitHub API request timed out after 30 seconds")), 30000);
+    });
+    
+    const { data: branchData } = await Promise.race([branchPromise, timeoutPromise]);
     sha = branchData.commit.sha;
-  } catch (e) {
+  } catch (e: any) {
     // If branch fetch fails, try to use the default branch from repo details or just let it fail later
+    if (e.message?.includes("timeout")) {
+      throw new Error(`GitHub API request timed out while fetching branch for ${owner}/${repo}`);
+    }
     console.warn("Could not fetch branch details, trying with provided name/sha");
   }
 
@@ -145,12 +163,29 @@ export async function getRepoFileTree(owner: string, repo: string, branch: strin
     return { tree: cachedTree, hiddenFiles: [] }; // Hidden files not cached separately but that's ok
   }
 
-  const { data } = await octokit.rest.git.getTree({
-    owner,
-    repo,
-    tree_sha: sha,
-    recursive: "true",
-  });
+  let data: any;
+  try {
+    const treePromise = octokit.rest.git.getTree({
+      owner,
+      repo,
+      tree_sha: sha,
+      recursive: "true",
+    });
+    
+    // Add timeout wrapper for tree fetch (this can be slow for large repos)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("GitHub API request timed out after 60 seconds")), 60000);
+    });
+    
+    const result = await Promise.race([treePromise, timeoutPromise]);
+    data = result.data;
+  } catch (e: any) {
+    if (e.message?.includes("timeout")) {
+      throw new Error(`GitHub API request timed out while fetching file tree for ${owner}/${repo}. The repository may be too large.`);
+    }
+    // Re-throw other errors
+    throw e;
+  }
 
   const hiddenFiles: { path: string; reason: string }[] = [];
 

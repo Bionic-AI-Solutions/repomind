@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: temp-registry
+spec:
+  containers:
+  - name: registry
+    image: registry:2
+    ports:
+    - containerPort: 5000
+    volumeMounts:
+    - name: image-data
+      mountPath: /var/lib/registry
+  volumes:
+  - name: image-data
+    emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temp-registry
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5000
+    targetPort: 5000
+  selector:
+    app: temp-registry
+
+
+
+

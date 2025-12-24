@@ -38,15 +38,21 @@ export function getClusterAIConfig(): ClusterAIConfig {
 
   if (isInternal) {
     // Running in cluster - use ClusterIP service
+    // Note: Internal service doesn't use /mcp prefix, direct /v1/* endpoints
     const serviceName =
       process.env.CLUSTER_AI_SERVICE || "mcp-api-server";
     const namespace =
       process.env.CLUSTER_AI_NAMESPACE || "ai-infrastructure";
     const port = process.env.CLUSTER_AI_PORT || "8000";
-    const path = process.env.CLUSTER_AI_PATH || "/mcp";
+    // Internal access: base URL is just the service, OpenAI client will add /v1/*
+    // External ingress uses /mcp prefix, but internal service doesn't need it
 
+    // For OpenAI SDK, baseURL needs to include /v1 for internal access too
+    // The SDK will append /chat/completions to the baseURL
+    // So baseURL should be: http://host:port/v1
+    // SDK will call: http://host:port/v1/chat/completions
     return {
-      baseURL: `http://${serviceName}.${namespace}.svc.cluster.local:${port}${path}`,
+      baseURL: `http://${serviceName}.${namespace}.svc.cluster.local:${port}/v1`,
       isInternal: true,
       serviceName,
       namespace,
@@ -56,9 +62,15 @@ export function getClusterAIConfig(): ClusterAIConfig {
     const ingressURL =
       process.env.CLUSTER_AI_ENDPOINT || "https://api.askcollections.com";
     const path = process.env.CLUSTER_AI_PATH || "/mcp";
+    
+    // For external access, OpenAI SDK needs the baseURL to include /v1
+    // The SDK will append /chat/completions to the baseURL
+    // So baseURL should be: https://api.askcollections.com/mcp/v1
+    // SDK will call: https://api.askcollections.com/mcp/v1/chat/completions
+    const baseURL = `${ingressURL}${path}/v1`;
 
     return {
-      baseURL: `${ingressURL}${path}`,
+      baseURL,
       isInternal: false,
       serviceName: "",
       namespace: "",
@@ -74,4 +86,6 @@ export function getClusterAIHealthURL(): string {
   // Remove /v1/* paths and add /health
   return config.baseURL.replace(/\/v1\/.*$/, "").replace(/\/$/, "") + "/health";
 }
+
+
 

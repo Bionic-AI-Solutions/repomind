@@ -19,3 +19,6 @@ configMapGenerator:
       - cache-provider=redis
       - NODE_ENV=development
 
+
+
+

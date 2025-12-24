@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: repomind-dockerfile
+data:
+  Dockerfile: |
+    # Build stage
+    FROM node:20-alpine AS builder
+    WORKDIR /app
+    COPY package.json package-lock.json* ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build
+    
+    # Production stage
+    FROM node:20-alpine AS runner
+    WORKDIR /app
+    ENV NODE_ENV=production
+    RUN addgroup --system --gid 1001 nodejs && \
+        adduser --system --uid 1001 nextjs
+    COPY --from=builder /app/public ./public
+    COPY --from=builder /app/.next/standalone ./
+    COPY --from=builder /app/.next/static ./.next/static
+    RUN chown -R nextjs:nodejs /app
+    USER nextjs
+    EXPOSE 3000
+    ENV PORT=3000
+    ENV HOSTNAME="0.0.0.0"
+    CMD ["node", "server.js"]
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: repomind-build
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+        - --dockerfile=/workspace/Dockerfile
+        - --context=/workspace
+        - --destination=portus-portus-helm-registry.registry.svc.cluster.local:5000/repomind:latest
+        - --insecure
+        - --skip-tls-verify
+        volumeMounts:
+        - name: source
+          mountPath: /workspace
+        - name: dockerfile
+          mountPath: /workspace/Dockerfile
+          subPath: Dockerfile
+      initContainers:
+      - name: copy-source
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          cd /workspace
+          # We'll copy files via a different method
+          echo "Waiting for source..."
+        volumeMounts:
+        - name: source
+          mountPath: /workspace
+      volumes:
+      - name: source
+        emptyDir: {}
+      - name: dockerfile
+        configMap:
+          name: repomind-dockerfile
+
+
+
+

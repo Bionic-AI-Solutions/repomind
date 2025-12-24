@@ -5,7 +5,11 @@
   // Features to add to the dev container
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    }
   },
 
   // Configure tool-specific properties
@@ -18,7 +22,8 @@
         "ms-vscode.vscode-typescript-next",
         "formulahendry.auto-rename-tag",
         "christian-kohler.path-intellisense",
-        "usernamehw.errorlens"
+        "usernamehw.errorlens",
+        "ms-azuretools.vscode-docker"
       ],
       "settings": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -50,9 +55,6 @@
     }
   },
 
-  // Use 'postCreateCommand' to run commands after the container is created
-  "postCreateCommand": "npm install",
-
   // Use 'postStartCommand' to run commands after the container starts
   "postStartCommand": "echo 'Container started! Run npm run dev to start the development server.'",
 
@@ -62,11 +64,26 @@
   // Mount the workspace
   "workspaceFolder": "/workspace",
 
+  // Mount Docker socket from host to enable Docker commands
+  // This allows the container to use the host's Docker daemon
+  // To use Docker-in-Docker instead, remove this mount and unset DOCKER_HOST
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind"
+  ],
+
   // Set environment variables
   "remoteEnv": {
-    "NODE_ENV": "development"
-  }
+    "NODE_ENV": "development",
+    // Connect to host Docker daemon by default
+    // To use Docker-in-Docker, comment out or remove DOCKER_HOST
+    "DOCKER_HOST": "unix:///var/run/docker-host.sock"
+  },
+
+  // Run commands after container creation
+  // Sets up Docker socket permissions and installs npm dependencies
+  "postCreateCommand": "bash .devcontainer/setup-docker.sh && npm install"
 }
+
 
 
 

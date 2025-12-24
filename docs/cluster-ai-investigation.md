@@ -3,12 +3,15 @@
 ## Date: 2025-12-08
 
 ## Overview
+
 Investigation of the Kubernetes cluster AI infrastructure to understand API protocols and integration points for RepoMind.
 
 ## Discovered Infrastructure
 
 ### Services
+
 - **mcp-api-server**: ClusterIP service on port 8000
+
   - Cluster IP: 10.43.23.252:8000
   - Endpoint: 192.168.0.10:8000
 
@@ -17,6 +20,7 @@ Investigation of the Kubernetes cluster AI infrastructure to understand API prot
   - Endpoint: 192.168.0.10:8000 (same as mcp-api-server)
 
 ### Ingress Configuration
+
 - **Host**: `api.askcollections.com`
 - **Paths**:
   - `/api` → ai-routing-api:8001
@@ -26,9 +30,11 @@ Investigation of the Kubernetes cluster AI infrastructure to understand API prot
 ## API Protocol Analysis
 
 ### Health Endpoint
+
 **URL**: `https://api.askcollections.com/health`
 
 **Response**:
+
 ```json
 {
   "message": "MCP API Server",
@@ -45,6 +51,7 @@ Investigation of the Kubernetes cluster AI infrastructure to understand API prot
 ```
 
 ### API Structure
+
 The API is **OpenAI-compatible** with the following endpoints:
 
 1. **Models List**: `/mcp/v1/models` or `/api/v1/models`
@@ -56,6 +63,7 @@ The API is **OpenAI-compatible** with the following endpoints:
 **Endpoint**: `https://api.askcollections.com/mcp/v1/models`
 
 **Response**:
+
 ```json
 {
   "object": "list",
@@ -75,6 +83,7 @@ The API is **OpenAI-compatible** with the following endpoints:
 ```
 
 **Available Model**: `qwen2.5-7b-instruct`
+
 - Max context length: 32,768 tokens
 - Backend: vLLM
 
@@ -83,6 +92,7 @@ The API is **OpenAI-compatible** with the following endpoints:
 **URL**: `https://api.askcollections.com/mcp/v1/chat/completions`
 
 **Request Format** (OpenAI-compatible):
+
 ```json
 {
   "model": "/app/models/text_generation/qwen2.5-7b-instruct",
@@ -99,6 +109,7 @@ The API is **OpenAI-compatible** with the following endpoints:
 ```
 
 **Response Format** (OpenAI-compatible):
+
 ```json
 {
   "id": "chatcmpl-...",
@@ -126,31 +137,37 @@ The API is **OpenAI-compatible** with the following endpoints:
 ## Authentication
 
 **Status**: No authentication required (based on testing)
+
 - No API key needed for basic requests
 - May require authentication in production (to be verified)
 
 ## Streaming Support
 
 **Status**: To be tested
+
 - OpenAI-compatible APIs typically support `"stream": true`
 - Need to verify SSE (Server-Sent Events) format
 
 ## Function Calling Support
 
 **Status**: To be tested
+
 - OpenAI-compatible format expected
 - Need to verify `tools` parameter support
 
 ## Integration Approach
 
 ### Recommended: OpenAI-Compatible Provider
+
 Since the API is fully OpenAI-compatible, we can:
+
 1. Reuse existing `OpenAIProvider` class
 2. Configure `OPENAI_BASE_URL=https://api.askcollections.com/mcp`
 3. Set model to `/app/models/text_generation/qwen2.5-7b-instruct`
 4. Minimal code changes required
 
 ### Alternative Endpoints
+
 - `/mcp/v1/*` - Direct MCP API server access
 - `/api/v1/*` - Routing API access (may have load balancing)
 
@@ -161,4 +178,6 @@ Since the API is fully OpenAI-compatible, we can:
 3. Verify authentication requirements
 4. Test performance and latency
 5. Document rate limits (if any)
+
+
 

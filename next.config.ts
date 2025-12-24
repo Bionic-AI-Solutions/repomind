@@ -2,11 +2,16 @@ import type { NextConfig } from "next";
 import withPWA from "next-pwa";
 
 const nextConfig: NextConfig = {
+  output: 'standalone', // Enable standalone output for Docker
   turbopack: {}, // Silence Turbopack warning for webpack-based next-pwa
   experimental: {
     serverActions: {
       bodySizeLimit: '5mb',
     },
+  },
+  // Disable static optimization for error pages to avoid build issues
+  generateBuildId: async () => {
+    return 'build-' + Date.now();
   },
 };
 
@@ -14,7 +19,7 @@ export default withPWA({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: false, // Enable in dev for testing
+  disable: false, // Enable PWA
   fallbacks: {
     document: '/_offline.html',
   },

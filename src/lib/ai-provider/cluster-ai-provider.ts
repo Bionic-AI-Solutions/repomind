@@ -23,14 +23,38 @@ export class ClusterAIProvider implements AIProvider {
     apiKey?: string
   ) {
     // Determine base URL - external ingress or internal service
-    this.baseURL = baseURL || this.detectBaseURL();
+    const rawBaseURL = baseURL || this.detectBaseURL();
     this.defaultModel =
       defaultModel || "/app/models/text_generation/qwen2.5-7b-instruct";
-    this.healthCheckURL = `${this.baseURL.replace(/\/v1.*$/, "")}/health`;
-
+    
+    // OpenAI SDK automatically appends /v1/chat/completions to baseURL
+    // For internal cluster access, baseURL should be just the host:port
+    // For external access, baseURL should include the path prefix (/mcp)
+    // Remove trailing slashes to avoid double slashes
+    let cleanBaseURL = rawBaseURL.replace(/\/$/, "");
+    
+    // For external access with /mcp path, the SDK will append /v1/chat/completions
+    // So baseURL should be: https://api.askcollections.com/mcp
+    // SDK will call: https://api.askcollections.com/mcp/v1/chat/completions
+    
+    // However, if the baseURL already ends with /v1, the SDK will still append /chat/completions
+    // So we need to ensure the baseURL is exactly: https://api.askcollections.com/mcp
+    // NOT: https://api.askcollections.com/mcp/v1 (this would cause double /v1)
+    
+    // For internal access, baseURL is just host:port
+    // SDK will call: http://host:port/v1/chat/completions
+    
+    // Store the clean baseURL for client use
+    this.baseURL = cleanBaseURL;
+    this.healthCheckURL = `${cleanBaseURL.replace(/\/v1.*$/, "").replace(/\/mcp$/, "")}/health`;
+    
+    console.log(`[ClusterAI] Initializing with baseURL: ${cleanBaseURL}, model: ${this.defaultModel}`);
+    
     this.client = new OpenAI({
       apiKey: apiKey || "cluster-ai", // Placeholder, may not be required
-      baseURL: this.baseURL,
+      baseURL: cleanBaseURL,
+      timeout: 60000, // 60 second timeout
+      maxRetries: 2,
     });
   }
 
@@ -49,17 +73,23 @@ export class ClusterAIProvider implements AIProvider {
     // Check if we're in Kubernetes (KUBERNETES_SERVICE_HOST is set)
     const k8sServiceHost = process.env.KUBERNETES_SERVICE_HOST;
     if (k8sServiceHost) {
-      // Running in cluster - use ClusterIP
+      // Running in cluster - use ClusterIP service
+      // Internal service doesn't use /mcp prefix, direct /v1/* endpoints
+      // OpenAI SDK needs /v1 in baseURL, will append /chat/completions
+      // So baseURL should be: http://host:port/v1
+      // SDK will call: http://host:port/v1/chat/completions
       const serviceName = process.env.CLUSTER_AI_SERVICE || "mcp-api-server";
       const namespace = process.env.CLUSTER_AI_NAMESPACE || "ai-infrastructure";
-      return `http://${serviceName}.${namespace}.svc.cluster.local:8000/mcp`;
+      return `http://${serviceName}.${namespace}.svc.cluster.local:8000/v1`;
     }
 
     // External access - use ingress
     const ingressURL =
       process.env.CLUSTER_AI_ENDPOINT || "https://api.askcollections.com";
     const path = process.env.CLUSTER_AI_PATH || "/mcp";
-    return `${ingressURL}${path}`;
+    // OpenAI SDK needs /v1 in the baseURL for external access
+    // SDK will append /chat/completions, so we need: https://api.askcollections.com/mcp/v1
+    return `${ingressURL}${path}/v1`;
   }
 
   /**
@@ -85,7 +115,19 @@ export class ClusterAIProvider implements AIProvider {
     const modelName = options?.model || this.defaultModel;
 
     try {
-      const response = await this.client.chat.completions.create({
+      console.log(`[ClusterAI] Making request to baseURL: ${this.baseURL}, model: ${modelName}`);
+      // Note: OpenAI SDK appends /chat/completions to baseURL
+      // For external: baseURL is https://api.askcollections.com/mcp/v1, SDK calls /chat/completions
+      // For internal: baseURL is http://host:port, SDK calls /v1/chat/completions
+      console.log(`[ClusterAI] Full endpoint will be: ${this.baseURL}/chat/completions`);
+      
+      // Add timeout wrapper to prevent hanging
+      const timeoutMs = 60000; // 60 seconds
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Cluster AI request timed out after ${timeoutMs}ms`)), timeoutMs);
+      });
+      
+      const apiPromise = this.client.chat.completions.create({
         model: modelName,
         messages: [{ role: "user", content: prompt }],
         temperature: options?.temperature,
@@ -93,6 +135,8 @@ export class ClusterAIProvider implements AIProvider {
         top_p: options?.topP,
         tools: this.buildTools(options?.tools),
       });
+      
+      const response = await Promise.race([apiPromise, timeoutPromise]);
 
       const message = response.choices[0]?.message;
       if (!message) {
@@ -108,12 +152,61 @@ export class ClusterAIProvider implements AIProvider {
       return message.content || "";
     } catch (error: any) {
       // Enhanced error handling for cluster-specific issues
-      if (error.status === 404) {
+      // OpenAI SDK errors can have status in error.status or error.response?.status
+      const statusCode = error.status || error.response?.status || error.statusCode;
+      const errorMessage = error.message || error.response?.data?.detail || String(error);
+      
+      // Log error details in a safe way
+      const errorDetails: any = {
+        status: statusCode,
+        message: errorMessage,
+        model: modelName,
+        baseURL: this.baseURL,
+        fullEndpoint: `${this.baseURL}/chat/completions`,
+        errorType: error.constructor?.name,
+        errorName: error.name,
+        errorCode: error.code,
+      };
+      
+      // Safely extract response data
+      if (error.response) {
+        errorDetails.responseStatus = error.response.status;
+        errorDetails.responseStatusText = error.response.statusText;
+        errorDetails.responseData = error.response.data;
+        errorDetails.responseHeaders = error.response.headers;
+      }
+      
+      // Try to get request details
+      if (error.request) {
+        errorDetails.requestUrl = error.request?.url || error.request?.href;
+        errorDetails.requestMethod = error.request?.method;
+      }
+      
+      // Log error keys for debugging
+      try {
+        errorDetails.errorKeys = Object.keys(error);
+      } catch (e) {
+        errorDetails.errorKeys = 'Unable to get keys';
+      }
+      
+      console.error(`Cluster AI API Error:`, errorDetails);
+      
+      // Also log the raw error for debugging
+      console.error(`Raw error object:`, error);
+      
+      // Handle timeout errors
+      if (error.name === 'AbortError' || errorMessage?.includes('timeout') || errorMessage?.includes('timed out')) {
         throw new Error(
-          `Cluster AI model not found: ${modelName}. Check available models.`
+          `Cluster AI request timed out after 60 seconds. The service may be slow or unavailable.`
         );
       }
-      if (error.status === 503 || error.code === "ECONNREFUSED") {
+      
+      if (statusCode === 404 || errorMessage?.includes('not found') || errorMessage?.includes('404')) {
+        throw new Error(
+          `Cluster AI model not found: ${modelName}. Check available models. BaseURL: ${this.baseURL}`
+        );
+      }
+      if (statusCode === 503 || error.code === "ECONNREFUSED" || errorMessage?.includes('unavailable')) {
         throw new Error(
           "Cluster AI service unavailable. Check if the service is running."
         );
@@ -129,24 +222,42 @@ export class ClusterAIProvider implements AIProvider {
     const modelName = options?.model || this.defaultModel;
 
     try {
-      const stream = await this.client.chat.completions.create({
-        model: modelName,
-        messages: [{ role: "user", content: prompt }],
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-        top_p: options?.topP,
-        tools: this.buildTools(options?.tools),
-        stream: true,
-      });
+      // Add timeout for streaming requests
+      const timeoutMs = 120000; // 120 seconds for streaming (longer since it's progressive)
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, timeoutMs);
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content;
-        if (content) {
-          yield content;
+      try {
+        const stream = await this.client.chat.completions.create({
+          model: modelName,
+          messages: [{ role: "user", content: prompt }],
+          temperature: options?.temperature,
+          max_tokens: options?.maxTokens,
+          top_p: options?.topP,
+          tools: this.buildTools(options?.tools),
+          stream: true,
+        }, {
+          signal: abortController.signal,
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            yield content;
+          }
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
     } catch (error: any) {
       // Enhanced error handling
+      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+        throw new Error(
+          `Cluster AI request timed out after 120 seconds. The service may be slow or unavailable.`
+        );
+      }
       if (error.status === 404) {
         throw new Error(
           `Cluster AI model not found: ${modelName}. Check available models.`
@@ -253,4 +364,6 @@ export class ClusterAIProvider implements AIProvider {
     }
   }
 }
+
+
 
